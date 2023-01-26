@@ -15,3 +15,29 @@ model Example {
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
 }
+
+model User {
+    id        String   @id @default(cuid())
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    username String @unique
+    email    String
+    password String // TODO: just store salted password
+    elo      Int
+    bio      String
+
+    whiteGames Game[] @relation("BlackUser")
+    blackGames Game[] @relation("WhiteUser")
+}
+
+model Game {
+    id        String   @id @default(cuid())
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    black       User   @relation(name: "BlackUser", fields: [blackUserId], references: [id])
+    blackUserId String
+    white       User   @relation(name: "WhiteUser", fields: [whiteUserId], references: [id])
+    whiteUserId String
+}
