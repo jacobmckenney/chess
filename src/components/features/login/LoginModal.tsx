@@ -13,19 +13,18 @@ interface Props {
 
 const LoginModal: React.FC<Props> = ({ open }) => {
   const [isLogin, cycle] = useCycle(false, true);
-  const [user, setUser] = useState<User | undefined>(undefined);
   const { register, handleSubmit } = useForm<UserCreationInfo>();
   const createUserMutation = api.auth.create.useMutation();
   const loginMutation = api.auth.login.useMutation();
+  const logoutMutation = api.auth.logout.useMutation();
+  const user = api.auth.user.useQuery();
 
   const onSubmit = async (data: UserCreationInfo) => {
     console.log(isLogin);
     if (isLogin) {
-      const user = await loginMutation.mutateAsync(data);
-      setUser(user);
+      await loginMutation.mutateAsync(data);
     } else {
-      const user = await createUserMutation.mutateAsync(data);
-      setUser(user);
+      await createUserMutation.mutateAsync(data);
     }
   };
 
@@ -37,7 +36,7 @@ const LoginModal: React.FC<Props> = ({ open }) => {
           onSubmit={handleSubmit(onSubmit)}
           className="flex w-1/2 flex-col justify-center rounded-lg bg-black px-10 align-middle text-white"
         >
-          {JSON.stringify(user)}
+          {JSON.stringify(user.data)}
           <Button action={cycle}>{isLogin ? "sign up" : "login"}</Button>
           <FormInput
             label="Username"
@@ -54,7 +53,7 @@ const LoginModal: React.FC<Props> = ({ open }) => {
             register={() => register("password", { required: false })}
           />
           <Button type="submit">login</Button>
-          <Button action={() => setUser(undefined)}>sign out</Button>
+          <Button action={() => logoutMutation.mutate()}>sign out</Button>
         </form>
       )}
     </>

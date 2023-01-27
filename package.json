@@ -17,6 +17,7 @@
     "@trpc/react-query": "^10.8.1",
     "@trpc/server": "^10.8.1",
     "framer-motion": "^8.5.3",
+    "iron-session": "^6.3.1",
     "next": "13.1.2",
     "react": "18.2.0",
     "react-dom": "18.2.0",
