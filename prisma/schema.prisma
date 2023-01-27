@@ -21,11 +21,14 @@ model User {
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
 
-    username String @unique
-    email    String
-    password String // TODO: just store salted password
-    elo      Int
-    bio      String
+    username   String @unique
+    email      String
+    hash       Bytes
+    iterations Int
+    salt       Bytes
+
+    elo Int
+    bio String
 
     whiteGames Game[] @relation("BlackUser")
     blackGames Game[] @relation("WhiteUser")

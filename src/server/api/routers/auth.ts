@@ -1,7 +1,7 @@
 import { getIronSession } from 'iron-session';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
-import { createNewUser } from '../../prisma';
+import { createNewUser, getHash } from '../../prisma';
 import { publicProcedure, createTRPCRouter} from '../trpc';
 import { sessionOptions } from '../../../utils/iron-session';
 import type { PrismaClient, Prisma, User } from '@prisma/client';
@@ -55,7 +55,9 @@ export const authRouter = createTRPCRouter({
         if (!user) {
             throw new TRPCError({message: "User does not exist", code: "UNAUTHORIZED"});
         }
-        if (user.password !== password) {
+        const { salt, iterations} = user;
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument
+        if (!getHash({password, salt, iterations}).equals(user.hash)) {
             throw new TRPCError({message: "Incorrect password", code: "UNAUTHORIZED"});
         }
         const session = await getSessionFromContext(ctx);
