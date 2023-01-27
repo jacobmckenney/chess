@@ -11,8 +11,15 @@ import { useRouter } from "next/router";
 const Auth: NextPage = () => {
   const [isLogin, cycle] = useCycle(true, false);
   const { register, handleSubmit } = useForm<UserCreationInfo>();
-  const createUserMutation = api.auth.create.useMutation();
-  const loginMutation = api.auth.login.useMutation();
+  const createUserMutation = api.auth.create.useMutation({
+    onSuccess: async () => router.push("/home"),
+    onError: (error) => {
+      console.log(error);
+    },
+  });
+  const loginMutation = api.auth.login.useMutation({
+    onSuccess: async () => router.push("/home"),
+  });
   const { data, refetch } = api.auth.user.useQuery();
   const router = useRouter();
 
@@ -22,9 +29,7 @@ const Auth: NextPage = () => {
     } else {
       await createUserMutation.mutateAsync(data);
     }
-    // TODO: Start spinner
     await refetch();
-    await router.push("/home");
   };
 
   return (
@@ -52,7 +57,7 @@ const Auth: NextPage = () => {
           register={() => register("password", { required: true })}
         />
         <Button action={handleSubmit(onSubmit)}>
-          {isLogin ? "sign up" : "login"}
+          {isLogin ? "login" : "sign up"}
         </Button>
       </form>
     </main>
