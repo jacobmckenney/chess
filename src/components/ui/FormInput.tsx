@@ -1,5 +1,4 @@
 import type { ReactElement } from "react";
-import { useState } from "react";
 import React from "react";
 
 interface Props {
@@ -10,7 +9,7 @@ interface Props {
 
 const FormInput: React.FC<Props> = ({ defaultValue, label, register }) => {
   return (
-    <div className="flex w-full gap-x-8">
+    <div className="flex w-full justify-between gap-x-8">
       <div>{label}</div>
       <input {...register()} className="w-1/3 text-black" />
     </div>

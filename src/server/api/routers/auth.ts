@@ -65,9 +65,10 @@ export const authRouter = createTRPCRouter({
     logout: publicProcedure.mutation(async ({ ctx }) => {
         const session = await getSessionFromContext(ctx);
         session.destroy();
+
     }),
     user: publicProcedure.query( async ({ ctx }) => {
         const session = await getSessionFromContext(ctx);
-        return session.user;
+        return session.user ?? null;
     })
 });
