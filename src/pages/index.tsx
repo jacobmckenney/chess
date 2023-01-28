@@ -9,15 +9,9 @@ import {
   INITIAL_BOARD_WHITE,
   White,
   Black,
-  Pawn,
-  Bishop,
-  Knight,
-  King,
-  Queen,
-  Rook,
 } from "../constants/board";
-import isEqual from "lodash/isEqual";
-import type { BoardState, Color, Selection, Square } from "../types/board";
+import type { BoardState, Color, Selection } from "../types/board";
+import { isValidMove } from "../utils/move-validation";
 
 interface Props {
   gameId: string;
@@ -26,39 +20,6 @@ interface Props {
 
 const colToFile = (col: number) => {
   return String.fromCharCode(col + 65);
-};
-
-// TODO: Need BoardState
-const isBlocked = (from: Square, to: Square) => {
-  return false;
-};
-
-const onDiagonal = (from: Square, to: Square) => {
-  const diffX = Math.abs(from.absCol - to.absCol);
-  const diffY = Math.abs(from.absRow - to.absRow);
-  return diffX - diffY === 0;
-};
-
-// This will be a pretty complicated function, need to incorporate castling, en passant, knight moves, etc.
-// probably should just calculate all possible squares and just execute containment conditional so that the
-// logic of finding squares can be applied in the future to just the general experience - when a user
-// selects a piece all valid squares for that piece are highlighted
-const isValidMove = (from: Selection, to: Square) => {
-  const { selectedPiece, square: fromSquare } = from;
-  const { type } = selectedPiece;
-  if (isEqual(fromSquare, to)) {
-    return false;
-  }
-  switch (type) {
-    case Pawn:
-      // TODO: incorporate en passant - will need boardStae
-      if (to.absCol !== fromSquare.absCol) return false;
-      return true;
-    case Bishop:
-      if (!onDiagonal(fromSquare, to) || isBlocked(fromSquare, to))
-        return false;
-  }
-  return true;
 };
 
 // TODOOOOOOOOO: convert all moves to a universal notation such that they can be acted upon
@@ -130,11 +91,11 @@ const Board: React.FC<Props> = ({ gameId, isWhite }) => {
                 onClick={() => {
                   // TODO: extract to separate function
                   // TODO: log move in board state
-                  if (!selected || !isValidMove(selected, square)) return;
+                  if (!selected || !isValidMove(selected, square, boardState))
+                    return;
                   setSelected(null);
                   // Update board
                   setBoardState((prev) => {
-                    console.log("once");
                     const {
                       board,
                       moves: { move, white, black },
