@@ -1,6 +1,6 @@
 export enum Color {
-    White = 0,
-    Black = 1,
+    White = 1,
+    Black = 0,
 }
 
 export enum Type {
@@ -17,7 +17,7 @@ export type PublicUserInfo = {
     elo: number,
 }
 
-export type Board = (Piece | null)[];
+export type Board = (Piece | null)[][];
 
 export type BoardState = {
     white: PublicUserInfo,
@@ -40,8 +40,8 @@ export type Move = {
 }
 
 export type Square = {
-    row: number,
-    col: number,
+    absRow: number;
+    absCol: number;
 }
 
 export type MoveInfo = {

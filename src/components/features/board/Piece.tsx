@@ -10,7 +10,7 @@ interface Props {
 
 const Piece: React.FC<Props> = ({ onClick, size, piece }) => {
   const { type, color } = piece;
-  const pieceColor = color ? "black" : "white";
+  const pieceColor = color ? "white" : "black";
   return (
     <Image
       onClick={onClick}
