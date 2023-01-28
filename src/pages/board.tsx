@@ -1,7 +1,8 @@
 import React from "react";
 import useMeasure from "react-use-measure";
-import Image from "next/image";
 import Piece from "../components/features/board/Piece";
+import { INITIAL_BOARD } from "../constants/board";
+import Image from "next/image";
 
 interface Props {
   gameId: string;
@@ -12,7 +13,7 @@ const colToFile = (col: number) => {
   return String.fromCharCode(col + 65);
 };
 
-const Board: React.FC<Props> = ({ gameId, isWhite = false }) => {
+const Board: React.FC<Props> = ({ gameId, isWhite = true }) => {
   const [ref, { height, width }] = useMeasure();
   const boardLen = Math.min(height - height * 0.1, width - width * 0.1);
   const squareLen = boardLen / 8;
@@ -26,7 +27,7 @@ const Board: React.FC<Props> = ({ gameId, isWhite = false }) => {
         className=" grid grid-cols-8 bg-black"
         style={{ width: boardLen, height: boardLen }}
       >
-        {new Array(64).fill(null).map((_, idx) => {
+        {INITIAL_BOARD.map((piece, idx) => {
           const blackRow = Math.floor(idx / 8);
           const row = isWhite ? 7 - blackRow : blackRow;
           const rank = row + 1;
@@ -40,7 +41,15 @@ const Board: React.FC<Props> = ({ gameId, isWhite = false }) => {
               key={idx}
             >
               <div className="absolute top-0 left-0 text-sm">{`${file}${rank}`}</div>
-              <Piece size={pieceSize} isWhite={true} piece="knight" />
+              {piece ? (
+                <Piece
+                  size={pieceSize}
+                  isWhite={!piece.color}
+                  piece={piece.type}
+                />
+              ) : (
+                <div style={{ width: pieceSize, height: pieceSize }} />
+              )}
             </div>
           );
         })}
