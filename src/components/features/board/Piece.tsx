@@ -1,18 +1,21 @@
 import React from "react";
 import Image from "next/image";
+import { Piece } from "../../../types/board";
 
 interface Props {
+  onClick: () => any;
   size: number;
-  isWhite: boolean;
-  piece: string;
+  piece: Piece;
 }
 
-const Piece: React.FC<Props> = ({ size, isWhite, piece }) => {
-  const pieceColor = isWhite ? "white" : "black";
+const Piece: React.FC<Props> = ({ onClick, size, piece }) => {
+  const { type, color } = piece;
+  const pieceColor = color ? "black" : "white";
   return (
     <Image
-      src={`/pieces/${pieceColor}/${piece}.png`}
-      alt={`${pieceColor} ${piece}`}
+      onClick={onClick}
+      src={`/pieces/${pieceColor}/${type}.png`}
+      alt={`${pieceColor} ${type}`}
       width={size}
       height={size}
     />

@@ -1,6 +1,7 @@
+import type { Board} from "../types/board";
 import { Piece, Color, Type} from "../types/board";
-const { White, Black } = Color;
-const { Pawn, Knight, Bishop, Rook, Queen, King} = Type;
+export const { White, Black } = Color;
+export const { Pawn, Knight, Bishop, Rook, Queen, King} = Type;
 export const PIECES = {
     WhitePawn: {color: White, type: Pawn, value: 1 },
     WhiteKnight: {color: White, type: Knight, value: 3 },
@@ -21,7 +22,7 @@ const {
     BlackPawn, BlackBishop, BlackKing, BlackKnight, BlackQueen, BlackRook
 } = PIECES;
 
-export const INITIAL_BOARD = [
+export const INITIAL_BOARD: Board = [
     BlackRook, BlackKnight, BlackBishop, BlackQueen, BlackKing, BlackBishop, BlackKnight, BlackRook,
     BlackPawn, BlackPawn, BlackPawn, BlackPawn, BlackPawn, BlackPawn, BlackPawn, BlackPawn,
     null, null, null, null, null, null, null, null,

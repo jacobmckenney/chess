@@ -17,12 +17,14 @@ export type PublicUserInfo = {
     elo: number,
 }
 
+export type Board = (Piece | null)[];
+
 export type BoardState = {
     white: PublicUserInfo,
     black: PublicUserInfo,
     turn: Color,
     moves: Move[],
-    board: Piece[][],
+    board: Board,
 }
 
 export type Piece = {
@@ -38,12 +40,17 @@ export type Move = {
 }
 
 export type Square = {
-    rank: number,
-    file: number,
+    row: number,
+    col: number,
 }
 
 export type MoveInfo = {
     piece: Piece,
     from: Square,
     to: Square,
+}
+
+export type Selection = {
+    selectedPiece: Piece,
+    square: Square,
 }
