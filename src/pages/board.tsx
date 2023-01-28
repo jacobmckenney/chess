@@ -25,28 +25,17 @@ const isValidMove = (from: Selection, to: Square) => {
   return true;
 };
 
-const getRowAndFile = (boardIdx: number, pov: Color) => {
-  const absRow = Math.floor(boardIdx / 8); // Absolute row in board array
-  const row = pov ? 7 - absRow : absRow; // Row according to pov
-  const rank = row + 1; // Display rank
-
-  const absCol = boardIdx % 8; // absolute col in board array
-  const col = pov ? absCol : 7 - absCol; // Col according to pov
-  const file = colToFile(col); // Display file
-
-  return { rank, file, absCol, absRow, col, row };
-};
-
 // TODOOOOOOOOO: convert all moves to a universal notation such that they can be acted upon
 // whether you are viewing the game for black's pov or white's pov
 
+// The board in boardState is the state of the UI, NOT the absolute board view (white's perspective)
 const Board: React.FC<Props> = ({ gameId, isWhite }) => {
   const [pov, cyclePov] = useCycle<Color>(White, Black);
   const [boardState, setBoardState] = useState<BoardState>({
     white: { name: "jake", elo: 2000 },
     black: { name: "spence", elo: 2500 },
     turn: White,
-    moves: [],
+    moves: { white: [], black: [], move: 0 },
     board: pov ? INITIAL_BOARD_WHITE : INITIAL_BOARD_BLACK,
   });
   const { white, black, turn, moves, board } = boardState;
@@ -88,138 +77,94 @@ const Board: React.FC<Props> = ({ gameId, isWhite }) => {
         className="grid grid-cols-8 bg-black shadow-md shadow-black"
         style={{ width: boardLen, height: boardLen }}
       >
-        {board.map(
-          (pieceRow, rowIdx) =>
-            pieceRow.map((piece, colIdx) => {
-              // Mappings to a board from white's perspective
-              const absRow = pov ? rowIdx : 7 - rowIdx;
-              const absCol = pov ? colIdx : 7 - colIdx;
-              const square = { absCol, absRow };
-              const isSelected =
-                selected?.square?.absCol === absCol &&
-                selected?.square?.absRow === absRow;
+        {board.map((pieceRow, rowIdx) =>
+          pieceRow.map((piece, colIdx) => {
+            // Mappings to a board from white's perspective
+            const absRow = pov ? rowIdx : 7 - rowIdx;
+            const absCol = pov ? colIdx : 7 - colIdx;
+            const square = { absCol, absRow };
+            const isSelected =
+              selected?.square?.absCol === absCol &&
+              selected?.square?.absRow === absRow;
 
-              const displayRank = pov ? 8 - rowIdx : rowIdx + 1;
-              const displayFile = colToFile(pov ? colIdx : 7 - colIdx);
-              return (
-                <div
-                  onClick={() => {
-                    // TODO: extract to separate function
-                    // TODO: log move in board state
-                    if (!selected) return;
-                    if (isValidMove(selected, square)) {
-                      setSelected(null);
-                      // Update board
-                      setBoardState((prev) => {
-                        const { board } = prev;
-                        // TODO: make helpers to map between absolute and relative vals
-                        const relRow = pov
-                          ? selected.square.absRow
-                          : 7 - selected.square.absRow;
-                        const relCol = pov
-                          ? selected.square.absCol
-                          : 7 - selected.square.absCol;
-                        board[relRow][relCol] = null;
-                        board[rowIdx][colIdx] = selected.selectedPiece;
-                        return {
-                          ...prev,
-                          board,
-                          turn: prev.turn === White ? Black : White,
-                        };
-                      });
-                    }
-                  }}
-                  key={`${rowIdx}${colIdx}`}
-                  className={`relative flex items-center justify-center text-black ${
-                    isSelected
-                      ? "bg-red-500"
-                      : colIdx % 2 == rowIdx % 2
-                      ? "bg-gray-400"
-                      : "bg-white"
-                  }`}
-                >
-                  <div className="absolute top-0 left-0 text-sm">{`${displayFile}${displayRank}`}</div>
-                  {piece ? (
-                    <Piece
-                      onClick={() => {
-                        if (turn === piece.color) {
-                          setSelected(
-                            isSelected
-                              ? null
-                              : {
-                                  selectedPiece: piece,
-                                  square,
-                                }
-                          );
-                        }
-                      }}
-                      size={pieceSize}
-                      piece={piece}
-                    />
-                  ) : (
-                    <div style={{ width: pieceSize, height: pieceSize }} />
-                  )}
-                </div>
-              );
-            })
-          // const { rank, file, absCol, absRow, row } = getRowAndFile(idx, pov);
-          // const isSelected =
-          //   selected?.square?.col === absCol &&
-          //   selected?.square?.row === absRow;
-
-          // const square = { col: absCol, row: absRow };
-
-          // <div
-          //   onClick={() => {
-          //     // TODO: extract to separate function
-          //     // TODO: log move in board state
-          //     if (!selected) return;
-          //     if (isValidMove(selected, square)) {
-          //       setSelected(null);
-          //       // Update board
-          //       setBoardState((prev) => {
-          //         const { board } = prev;
-          //         board[selected.square.row * 8 + selected.square.col] = null;
-          //         board[square.row * 8 + square.col] = selected.selectedPiece;
-          //         return {
-          //           ...prev,
-          //           board,
-          //           turn: prev.turn === White ? Black : White,
-          //         };
-          //       });
-          //     }
-          //   }}
-          //   className={`relative flex items-center justify-center text-black ${
-          //     isSelected
-          //       ? "bg-red-600"
-          //       : (idx % 2 === row % 2) === !!pov
-          //       ? "bg-gray-400"
-          //       : "bg-white"
-          //   }`}
-          //   key={idx}
-          // >
-          //   <div className="absolute top-0 left-0 text-sm">{`${file}${rank}`}</div>
-          //   {piece ? (
-          //     <Piece
-          //       onClick={() => {
-          //         if (turn === piece.color) {
-          //           setSelected(
-          //             isSelected
-          //               ? null
-          //               : {
-          //                   selectedPiece: piece,
-          //                   square,
-          //                 }
-          //           );
-          //         }
-          //       }}
-          //       size={pieceSize}
-          //       piece={piece}
-          //     />
-          //   ) : (
-          //     <div style={{ width: pieceSize, height: pieceSize }} />
-          //   )}
-          // </div>
+            const displayRank = pov ? 8 - rowIdx : rowIdx + 1;
+            const displayFile = colToFile(pov ? colIdx : 7 - colIdx);
+            return (
+              <div
+                onClick={() => {
+                  // TODO: extract to separate function
+                  // TODO: log move in board state
+                  if (!selected || !isValidMove(selected, square)) return;
+                  setSelected(null);
+                  // Update board
+                  setBoardState((prev) => {
+                    console.log("once");
+                    const {
+                      board,
+                      moves: { move, white, black },
+                    } = prev;
+                    // TODO: make helpers to map between absolute and relative vals
+                    // TODO: figure out why onClick is firing twice so that we can remove the move value on boardStae
+                    // Update board pieces
+                    const relRow = pov
+                      ? selected.square.absRow
+                      : 7 - selected.square.absRow;
+                    const relCol = pov
+                      ? selected.square.absCol
+                      : 7 - selected.square.absCol;
+                    board[relRow][relCol] = null;
+                    board[rowIdx][colIdx] = selected.selectedPiece;
+                    // Log move
+                    (turn ? white : black)[move] = {
+                      piece: selected.selectedPiece,
+                      from: selected.square,
+                      to: square,
+                    };
+                    return {
+                      ...prev,
+                      moves: {
+                        white,
+                        black,
+                        move: prev.turn === White ? move : move + 1,
+                      },
+                      board,
+                      turn: prev.turn === White ? Black : White,
+                    };
+                  });
+                }}
+                key={`${rowIdx}${colIdx}`}
+                className={`relative flex items-center justify-center text-black ${
+                  isSelected
+                    ? "bg-red-500"
+                    : colIdx % 2 == rowIdx % 2
+                    ? "bg-gray-400"
+                    : "bg-white"
+                }`}
+              >
+                <div className="absolute top-0 left-0 text-sm">{`${displayFile}${displayRank}`}</div>
+                {piece ? (
+                  <Piece
+                    onClick={() => {
+                      if (turn === piece.color) {
+                        setSelected(
+                          isSelected
+                            ? null
+                            : {
+                                selectedPiece: piece,
+                                square,
+                              }
+                        );
+                      }
+                    }}
+                    size={pieceSize}
+                    piece={piece}
+                  />
+                ) : (
+                  <div style={{ width: pieceSize, height: pieceSize }} />
+                )}
+              </div>
+            );
+          })
         )}
       </div>
       <ProfileBadge user={user} />

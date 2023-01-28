@@ -23,7 +23,7 @@ export type BoardState = {
     white: PublicUserInfo,
     black: PublicUserInfo,
     turn: Color,
-    moves: Move[],
+    moves: Moves,
     board: Board,
 }
 
@@ -34,9 +34,10 @@ export type Piece = {
     //TODO: Valid movements
 }
 
-export type Move = {
-    white: MoveInfo,
-    black: MoveInfo
+export type Moves = {
+    white: MoveInfo[],
+    black: MoveInfo[],
+    move: number;
 }
 
 export type Square = {
