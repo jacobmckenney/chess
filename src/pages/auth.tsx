@@ -13,9 +13,6 @@ const Auth: NextPage = () => {
   const { register, handleSubmit } = useForm<UserCreationInfo>();
   const createUserMutation = api.auth.create.useMutation({
     onSuccess: async () => router.push("/home"),
-    onError: (error) => {
-      console.log(error);
-    },
   });
   const loginMutation = api.auth.login.useMutation({
     onSuccess: async () => router.push("/home"),

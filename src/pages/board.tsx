@@ -1,45 +1,46 @@
 import React from "react";
 import useMeasure from "react-use-measure";
+import Image from "next/image";
+import Piece from "../components/features/board/Piece";
 
 interface Props {
   gameId: string;
+  isWhite: boolean;
 }
 
-const Board: React.FC<Props> = ({ gameId }) => {
+const colToFile = (col: number) => {
+  return String.fromCharCode(col + 65);
+};
+
+const Board: React.FC<Props> = ({ gameId, isWhite = false }) => {
   const [ref, { height, width }] = useMeasure();
-  const squareLen = Math.min(
-    (height - height * 0.1) / 8,
-    width - (height * 0.1) / 8
-  );
+  const boardLen = Math.min(height - height * 0.1, width - width * 0.1);
+  const squareLen = boardLen / 8;
+  const pieceSize = squareLen * 0.9;
   return (
     <div
       ref={ref}
-      className="min-h-screen flex-col items-center justify-center bg-gradient-to-b from-[#2e026d] to-[#15162c] text-white"
+      className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-[#2e026d] to-[#15162c] text-white"
     >
-      <div className="fixed top-5 right-1/2 flex translate-x-1/2 flex-col rounded-lg bg-black">
-        {new Array(8).fill("").map((_, idx1) => {
+      <div
+        className=" grid grid-cols-8 bg-black"
+        style={{ width: boardLen, height: boardLen }}
+      >
+        {new Array(64).fill(null).map((_, idx) => {
+          const blackRow = Math.floor(idx / 8);
+          const row = isWhite ? 7 - blackRow : blackRow;
+          const rank = row + 1;
+          const whiteFile = idx % 8;
+          const file = colToFile(isWhite ? whiteFile : 7 - whiteFile);
           return (
-            <div key={idx1} className="flex " style={{ height: squareLen }}>
-              {new Array(8).fill("").map((_, idx2) => {
-                return (
-                  <div
-                    className={`${
-                      // Simplify this
-                      idx1 % 2 == 0
-                        ? idx2 % 2 == 1
-                          ? "bg-white"
-                          : "bg-black"
-                        : idx2 % 2 == 1
-                        ? "bg-black"
-                        : "bg-white"
-                    }`}
-                    key={`${idx1}${idx2}`}
-                    style={{ width: squareLen }}
-                  >
-                    idx
-                  </div>
-                );
-              })}
+            <div
+              className={`relative flex items-center justify-center text-blue-400 ${
+                (idx % 2 === row % 2) == isWhite ? "bg-black" : "bg-white"
+              }`}
+              key={idx}
+            >
+              <div className="absolute top-0 left-0 text-sm">{`${file}${rank}`}</div>
+              <Piece size={pieceSize} isWhite={true} piece="knight" />
             </div>
           );
         })}
