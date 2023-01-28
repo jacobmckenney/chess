@@ -2,7 +2,12 @@ import React, { useState } from "react";
 import useMeasure from "react-use-measure";
 import Piece from "../components/features/board/Piece";
 import ProfileBadge from "../components/ui/ProfileBadge";
-import { INITIAL_BOARD, White, Black } from "../constants/board";
+import {
+  INITIAL_BOARD_BLACK,
+  INITIAL_BOARD_WHITE,
+  White,
+  Black,
+} from "../constants/board";
 import type { BoardState, Selection, Square } from "../types/board";
 
 interface Props {
@@ -18,13 +23,16 @@ const isValidMove = (from: Selection, to: Square) => {
   return true;
 };
 
-const Board: React.FC<Props> = ({ gameId, isWhite = true }) => {
+// TODOOOOOOOOO: convert all moves to a universal notation such that they can be acted upon
+// whether you are viewing the game for black's pov or white's pov
+
+const Board: React.FC<Props> = ({ gameId, isWhite = false }) => {
   const [boardState, setBoardState] = useState<BoardState>({
     white: { name: "jake", elo: 2000 },
     black: { name: "spence", elo: 2500 },
     turn: White,
     moves: [],
-    board: INITIAL_BOARD,
+    board: isWhite ? INITIAL_BOARD_WHITE : INITIAL_BOARD_BLACK,
   });
   const { white, black, turn, moves, board } = boardState;
 
@@ -47,7 +55,7 @@ const Board: React.FC<Props> = ({ gameId, isWhite = true }) => {
         className="grid grid-cols-8 bg-black shadow-md shadow-black"
         style={{ width: boardLen, height: boardLen }}
       >
-        {INITIAL_BOARD.map((piece, idx) => {
+        {board.map((piece, idx) => {
           const blackRow = Math.floor(idx / 8);
           const row = isWhite ? 7 - blackRow : blackRow;
           const rank = row + 1;
