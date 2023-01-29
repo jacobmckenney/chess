@@ -1,23 +1,35 @@
 import { isEqual } from "lodash";
 import { Pawn, Bishop, Knight, Rook, Queen, King } from "../constants/board";
-import type { Square, BoardState } from "../types/board";
-import type { Selection } from "../types/board";
+import type { Square, BoardState, Piece } from "../types/board";
 
-// TODO: Need BoardState
-const isBlocked = (from: Square, to: Square, boardState: BoardState) => {
+type Diffs = {
+  diffX: number,
+  diffY: number,
+}
+
+const isBlocked = (from: Square, to: Square, boardState: BoardState, diffs: Diffs) => {
   const { board } = boardState;
-  const [minCol, maxCol] = [Math.min(from.absCol, to.absCol), Math.max(from.absCol, to.absCol)];
-  const [minRow, maxRow] = [Math.min(from.absRow, to.absRow), Math.max(from.absRow, to.absRow)];
-  if (onRow(from, to)) {
+  const [{ absCol: fromCol, absRow: fromRow}, {absCol: toCol, absRow: toRow}] = [from, to];
+  const [minCol, maxCol] = [Math.min(fromCol, toCol), Math.max(fromCol, toCol)];
+  const [minRow, maxRow] = [Math.min(fromRow, toRow), Math.max(fromRow, toRow)];
+  const smallerSquare = fromRow < toRow ? from : to;
+  if (onRow(diffs)) {
     for (let i = minCol + 1; i < maxCol; i++) {
       if (board[minRow][i] !== null) return true;
     }
-  } else if (onCol(from, to)) {
+  } else if (onCol(diffs)) {
     for (let i = minRow + 1; i < maxRow; i++) {
       if (board[i][minCol] !== null) return true;
     }
-  } else if (onDiagonal(from, to)) {
-
+  } else if (onDiagonal(diffs)) {
+    // Slope considered from "black's perspective" because the 0-index is the top of the absolute board
+    const isPositiveSlope = (fromRow - toRow) / (fromCol - toCol) < 0;
+    for (let i = 1; i < maxRow - minRow; i++) {
+      const { absRow: smallRow, absCol: smallCol } = smallerSquare;
+      const rowKey = smallRow + i;
+      const colKey = isPositiveSlope ? smallCol - i  : smallCol + i;
+      if (board[rowKey][colKey] !== null) return true;
+    }
   }
   return false;
 };
@@ -29,48 +41,62 @@ const getDiffs = (from: Square, to: Square) => {
 }
 
 
-const onRow = (from: Square, to: Square) => {
-    const { diffY } = getDiffs(from, to);
+const onRow = ({ diffY }: Diffs) => {
     return diffY == 0;
 }
 
-const onCol = (from: Square, to: Square) => {
-    const { diffX} = getDiffs(from, to);
+const onCol = ({ diffX }: Diffs) => {
     return diffX == 0;
 }
 
-const onCross = (from: Square, to: Square) => onRow(from, to) || onCol(from, to);
+const onCross = (diffs: Diffs) => onRow(diffs) || onCol(diffs);
 
-const onDiagonal = (from: Square, to: Square) => {
-    const { diffX, diffY } = getDiffs(from, to);
+const onDiagonal = ({ diffX, diffY }: Diffs) => {
   return diffX - diffY === 0;
 };
 
+const inCheck = (from: Square, to: Square, boardState: BoardState) => {
+  return false;
+}
+
+const isValidKnightMove = ({ diffX, diffY}: Diffs) => {
+  return (diffX === 2 && diffY === 1) || (diffX === 1 && diffY === 2);
+}
+
+const isValidKingMove = (from: Square, to: Square, boardState: BoardState, { diffX, diffY }: Diffs) => {
+  return (diffX === 1 || diffY === 1) && !inCheck(from, to, boardState);
+}
+
+const isValidPawnMove = (from: Square, to: Square, diffs: Diffs) => {
+  return true;
+}
 // This will be a pretty complicated function, need to incorporate castling, en passant, knight moves, etc.
-// probably should just calculate all possible squares and just execute containment conditional so that the
+// probably should just calculate all possible squares and just containment conditional so that the
 // logic of finding squares can be applied in the future to just the general experience - when a user
 // selects a piece all valid squares for that piece are highlighted
-export const isValidMove = (from: Selection, to: Square, boardState: BoardState) => {
-  const { selectedPiece, square: fromSquare } = from;
+export const isValidMove = (from: Square, to: Square, boardState: BoardState) => {
   const { board } = boardState;
+  const [{ absCol: fromCol, absRow: fromRow}, {absCol: toCol, absRow: toRow}] = [from, to];
+  const selectedPiece = board[fromRow][fromCol] as Piece;
   const { type, color } = selectedPiece;
-  if (isEqual(fromSquare, to) || (color === board[to.absRow][to.absCol]?.color)) {
+  const diffs = getDiffs(from, to);
+  if (isEqual(from, to) || (color === board[toRow][toCol]?.color)) {
     return false;
   }
   switch (type) {
     case Pawn:
-      // TODO: incorporate en passant
-      return to.absCol === from.square.absCol;
+      // TODO: incorporate en passant, one-directional rule, capturing, and max number of squares
+      return isValidPawnMove(from, to, diffs);
     case Bishop:
-      return onDiagonal(fromSquare, to) && !isBlocked(fromSquare, to, boardState);
+      return onDiagonal(diffs) && !isBlocked(from, to, boardState, diffs);
     case Knight:
-      return true;
+      return isValidKnightMove(diffs);
     case Rook:
-        return (onCross(fromSquare, to)) && !isBlocked(fromSquare, to, boardState);
+        return (onCross(diffs)) && !isBlocked(from, to, boardState, diffs);
     case Queen:
-        return (onDiagonal(fromSquare, to) || onCross(fromSquare, to)) && !isBlocked(fromSquare, to, boardState);
+        return (onDiagonal(diffs) || onCross(diffs)) && !isBlocked(from, to, boardState, diffs);
     case King:
-        return true;
+        return isValidKingMove(from, to, boardState, diffs);
     default:
         return false;
   }

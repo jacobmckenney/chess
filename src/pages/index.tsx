@@ -1,7 +1,7 @@
 import { useCycle } from "framer-motion";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import useMeasure from "react-use-measure";
-import Piece from "../components/features/board/Piece";
+import PieceDisplay from "../components/features/board/Piece";
 import Button from "../components/ui/Button";
 import ProfileBadge from "../components/ui/ProfileBadge";
 import {
@@ -10,7 +10,9 @@ import {
   White,
   Black,
 } from "../constants/board";
-import type { BoardState, Color, Selection } from "../types/board";
+import type { Piece, UpdateBoardArgs } from "../types/board";
+import type { BoardState, Color, Square } from "../types/board";
+import { reverse2d } from "../utils/misc";
 import { isValidMove } from "../utils/move-validation";
 
 interface Props {
@@ -22,12 +24,74 @@ const colToFile = (col: number) => {
   return String.fromCharCode(col + 65);
 };
 
-// TODOOOOOOOOO: convert all moves to a universal notation such that they can be acted upon
-// whether you are viewing the game for black's pov or white's pov
+const getPieceInfo = (
+  rowIdx: number,
+  colIdx: number,
+  pov: Color,
+  selected: Square | null
+) => {
+  const absRow = pov ? rowIdx : 7 - rowIdx;
+  const absCol = pov ? colIdx : 7 - colIdx;
+  const square = { absCol, absRow };
+  const isSelected = selected?.absCol === absCol && selected?.absRow === absRow;
+  const displayRank = pov ? 8 - rowIdx : rowIdx + 1;
+  const displayFile = colToFile(pov ? colIdx : 7 - colIdx);
+  return {
+    square,
+    isSelected,
+    displayRank,
+    displayFile,
+  };
+};
 
-// The board in boardState is the state of the UI, NOT the absolute board view (white's perspective)
+const updateBoard = ({
+  piece,
+  isSelected,
+  to,
+  boardState,
+  selected,
+  setSelected,
+  setBoardState,
+}: UpdateBoardArgs) => {
+  const { board, turn } = boardState;
+  if (piece && turn === piece.color) {
+    setSelected(isSelected ? null : to);
+  }
+  if (!selected || !isValidMove(selected, to, boardState)) return;
+  // Update board
+  const { absRow: fromRow, absCol: fromCol } = selected;
+  const { absRow: toRow, absCol: toCol } = to;
+  const selectedPiece = board[selected.absRow][selected.absCol] as Piece;
+  setBoardState((prev) => {
+    const {
+      board,
+      moves: { move, white, black },
+    } = prev;
+    board[fromRow][fromCol] = null;
+    board[toRow][toCol] = selectedPiece;
+    // Log move
+    (turn ? white : black)[move] = {
+      piece: selectedPiece,
+      from: selected,
+      to,
+    };
+    return {
+      ...prev,
+      moves: {
+        white,
+        black,
+        move: prev.turn === White ? move : move + 1,
+      },
+      board,
+      turn: prev.turn === White ? Black : White,
+    };
+  });
+  setSelected(null);
+};
+
 const Board: React.FC<Props> = ({ gameId, isWhite }) => {
   const [pov, cyclePov] = useCycle<Color>(White, Black);
+  const [selected, setSelected] = useState<Square | null>(null);
   const [boardState, setBoardState] = useState<BoardState>({
     white: { name: "jake", elo: 2000 },
     black: { name: "spence", elo: 2500 },
@@ -35,7 +99,7 @@ const Board: React.FC<Props> = ({ gameId, isWhite }) => {
     moves: { white: [], black: [], move: 0 },
     board: pov ? INITIAL_BOARD_WHITE : INITIAL_BOARD_BLACK,
   });
-  const { white, black, turn, board } = boardState;
+  const { white, black, board } = boardState;
 
   const [ref, { height, width }] = useMeasure();
   const boardLen = Math.min(height - height * 0.15, width - width * 0.15);
@@ -45,7 +109,11 @@ const Board: React.FC<Props> = ({ gameId, isWhite }) => {
   const user = pov ? white : black;
   const opponent = pov ? black : white;
 
-  const [selected, setSelected] = useState<Selection | null>(null);
+  const getDisplayBoard = (board: (Piece | null)[][]) => {
+    return pov ? board : reverse2d<Piece | null>(board);
+  };
+  const displayBoard = getDisplayBoard(board);
+
   return (
     <div
       ref={ref}
@@ -53,82 +121,29 @@ const Board: React.FC<Props> = ({ gameId, isWhite }) => {
     >
       <div>
         <ProfileBadge user={opponent} />
-        <Button
-          action={() => {
-            setBoardState((prev) => {
-              const { board } = prev;
-              // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-              const reverse = (arr: any[]) => arr.slice(0).reverse();
-              return {
-                ...prev,
-                board: reverse(board).map(reverse) as (Piece | null)[][],
-              };
-            });
-            cyclePov();
-          }}
-        >
-          Switch Pov
-        </Button>
+        <Button action={cyclePov}>Switch Pov</Button>
       </div>
       <div
         className="grid grid-cols-8 bg-black shadow-md shadow-black"
         style={{ width: boardLen, height: boardLen }}
       >
-        {board.map((pieceRow, rowIdx) =>
+        {displayBoard.map((pieceRow, rowIdx) =>
           pieceRow.map((piece, colIdx) => {
-            // Mappings to a board from white's perspective
-            const absRow = pov ? rowIdx : 7 - rowIdx;
-            const absCol = pov ? colIdx : 7 - colIdx;
-            const square = { absCol, absRow };
-            const isSelected =
-              selected?.square?.absCol === absCol &&
-              selected?.square?.absRow === absRow;
-
-            const displayRank = pov ? 8 - rowIdx : rowIdx + 1;
-            const displayFile = colToFile(pov ? colIdx : 7 - colIdx);
+            const { square, isSelected, displayRank, displayFile } =
+              getPieceInfo(rowIdx, colIdx, pov, selected);
             return (
               <div
-                onClick={() => {
-                  // TODO: extract to separate function
-                  // TODO: log move in board state
-                  if (!selected || !isValidMove(selected, square, boardState))
-                    return;
-                  setSelected(null);
-                  // Update board
-                  setBoardState((prev) => {
-                    const {
-                      board,
-                      moves: { move, white, black },
-                    } = prev;
-                    // TODO: make helpers to map between absolute and relative vals
-                    // TODO: figure out why onClick is firing twice so that we can remove the move value on boardStae
-                    // Update board pieces
-                    const relRow = pov
-                      ? selected.square.absRow
-                      : 7 - selected.square.absRow;
-                    const relCol = pov
-                      ? selected.square.absCol
-                      : 7 - selected.square.absCol;
-                    board[relRow][relCol] = null;
-                    board[rowIdx][colIdx] = selected.selectedPiece;
-                    // Log move
-                    (turn ? white : black)[move] = {
-                      piece: selected.selectedPiece,
-                      from: selected.square,
-                      to: square,
-                    };
-                    return {
-                      ...prev,
-                      moves: {
-                        white,
-                        black,
-                        move: prev.turn === White ? move : move + 1,
-                      },
-                      board,
-                      turn: prev.turn === White ? Black : White,
-                    };
-                  });
-                }}
+                onClick={() =>
+                  updateBoard({
+                    piece,
+                    isSelected,
+                    to: square,
+                    boardState,
+                    selected,
+                    setSelected,
+                    setBoardState,
+                  })
+                }
                 key={`${rowIdx}${colIdx}`}
                 className={`relative flex items-center justify-center text-black ${
                   isSelected
@@ -140,22 +155,7 @@ const Board: React.FC<Props> = ({ gameId, isWhite }) => {
               >
                 <div className="absolute top-0 left-0 text-sm">{`${displayFile}${displayRank}`}</div>
                 {piece ? (
-                  <Piece
-                    onClick={() => {
-                      if (turn === piece.color) {
-                        setSelected(
-                          isSelected
-                            ? null
-                            : {
-                                selectedPiece: piece,
-                                square,
-                              }
-                        );
-                      }
-                    }}
-                    size={pieceSize}
-                    piece={piece}
-                  />
+                  <PieceDisplay size={pieceSize} piece={piece} />
                 ) : (
                   <div style={{ width: pieceSize, height: pieceSize }} />
                 )}

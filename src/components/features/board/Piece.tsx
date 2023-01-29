@@ -3,7 +3,7 @@ import Image from "next/image";
 import { Piece } from "../../../types/board";
 
 interface Props {
-  onClick: () => any;
+  onClick?: () => any;
   size: number;
   piece: Piece;
 }
