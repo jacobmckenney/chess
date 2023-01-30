@@ -8,6 +8,7 @@ import { White, Black, INITIAL_BOARD } from "../constants/board";
 import type {
   MoveInfo,
   Piece,
+  PotentialMove,
   Selection,
   UpdateBoardArgs,
 } from "../types/board";
@@ -16,6 +17,7 @@ import { inverseColor } from "../utils/board";
 import { reverse2d } from "../utils/misc";
 import { getValidMoves } from "../utils/move-validation";
 import some from "lodash/some";
+import { find } from "lodash";
 
 interface Props {
   gameId: string;
@@ -24,6 +26,17 @@ interface Props {
 
 const colToFile = (col: number) => {
   return String.fromCharCode(col + 65);
+};
+
+const getNextMove = (
+  arr: MoveInfo[],
+  move: MoveInfo,
+  turn: Color
+): MoveInfo[] => {
+  if (turn) {
+    arr.push(move);
+  }
+  return arr;
 };
 
 const getPieceInfo = (
@@ -70,23 +83,15 @@ const updateBoard = ({
           }
     );
   }
-  if (!selection || !some(selection.validMoves, to)) return;
+  if (!selection) return;
+  const potentialMove = find(selection.validMoves, to as PotentialMove);
+  if (!potentialMove) return;
   const selected = selection.square;
   // Update board
   const { absRow: fromRow, absCol: fromCol } = selected;
   const { absRow: toRow, absCol: toCol } = to;
   const selectedPiece = board[selected.absRow][selected.absCol] as Piece;
   selectedPiece.numMoves++;
-  const getNextMove = (
-    arr: MoveInfo[],
-    move: MoveInfo,
-    turn: Color
-  ): MoveInfo[] => {
-    if (turn) {
-      arr.push(move);
-    }
-    return arr;
-  };
   const newMove = { piece: selectedPiece, from: selected, to };
   const [newWhite, newBlack] = [
     getNextMove(white, newMove, turn),
@@ -94,9 +99,9 @@ const updateBoard = ({
   ];
   setBoardState((prev) => {
     const { board } = prev;
-    // if (taken) {
-    //   board[taken.absRow][taken.absCol] = null;
-    // }
+    if (potentialMove.taken) {
+      board[potentialMove.taken.absRow][potentialMove.taken.absCol] = null;
+    }
     board[fromRow][fromCol] = null;
     board[toRow][toCol] = selectedPiece;
     // Log move

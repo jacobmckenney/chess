@@ -46,6 +46,10 @@ export type Square = {
     absCol: number;
 }
 
+export type PotentialMove = Square & {
+    taken?: Square,
+}
+
 export type MoveInfo = {
     piece: Piece,
     from: Square,
@@ -69,8 +73,8 @@ export type MoveValidateReturn = {
 
 export type Selection = {
     square: Square,
-    validMoves: Square[],
+    validMoves: PotentialMove[],
 }
 
-export type ValidMovesCallback = (from: Square, boardState: BoardState) => Square[];
+export type ValidMovesCallback = (from: Square, boardState: BoardState) => PotentialMove[];
 export type ValidMovesMap = {[key in Type]: ValidMovesCallback};

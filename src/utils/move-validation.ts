@@ -1,11 +1,9 @@
 import { BOARD_SIDE_LEN } from './../constants/board';
-import type { Board, MoveValidateReturn, Type, ValidMovesCallback, ValidMovesMap } from './../types/board';
+import type { MoveValidateReturn, PotentialMove, ValidMovesMap } from './../types/board';
 import { getLastMove } from './board';
-import { isEqual } from "lodash";
 import { Pawn, Bishop, Knight, Rook, Queen, King, Black, White } from "../constants/board";
-import type { Square, BoardState, Piece } from "../types/board";
+import type { Square, BoardState } from "../types/board";
 import { inRange } from 'lodash';
-import { some } from 'lodash';
 
 const KING_DELTAS = [-1, 0, 1];
 const KNIGHT_DELTAS = [[1, 2], [-1, 2], [1, -2], [-1, -2], [2, 1], [-2, 1], [2, -1], [-2, -1]];
@@ -122,7 +120,7 @@ const isValidPawnMove = (from: Square, to: Square, { turn, board, moves }: Board
   return { isValid, ...(isTakingEnPassant && {taken: { absRow: epTakenRow, absCol: toCol}}) };
 }
 
-const getValidPawnMoves = (from: Square, boardState: BoardState) => {
+const getValidPawnMoves = (from: Square, boardState: BoardState): PotentialMove[] => {
   const { turn } = boardState;
   const { absRow, absCol } = from;
   const checks = [
@@ -131,7 +129,11 @@ const getValidPawnMoves = (from: Square, boardState: BoardState) => {
     { absRow: absRow + (turn ? -1 : 1), absCol: absCol + 1}, // Take or en passant
     { absRow: absRow + (turn ? -1 : 1), absCol: absCol - 1} // Take or en passant
   ]
-  return checks.filter(check => isValidPawnMove(from, check, boardState, getDiffs(from, check)).isValid)
+  return checks.reduce((prev: PotentialMove[], check) => {
+    const { absCol, absRow } = check;
+    const { isValid, taken } = isValidPawnMove(from, check, boardState, getDiffs(from, check));
+    return isValid ? [...prev, {absRow, absCol, taken}] : prev;
+  }, []);
 }
 
 const getValidBishopMoves = (from: Square, boardState: BoardState) => {
@@ -156,50 +158,6 @@ const getValidRookMoves = (from: Square, boardState: BoardState) => {
     validateAndPush(moves, { absRow: absRow, absCol: absCol - i }, boardState);
   }
   return moves.filter((potential) => !isBlocked(from, potential, boardState, getDiffs(from, potential)));
-}
-
-// This will be a pretty complicated function, need to incorporate castling, en passant, knight moves, etc.
-// probably should just calculate all possible squares and just containment conditional so that the
-// logic of finding squares can be applied in the future to just the general experience - when a user
-// selects a piece all valid squares for that piece are highlighted
-const isValidMoveHelper = (from: Square, to: Square, boardState: BoardState): MoveValidateReturn => {
-  const { board } = boardState;
-  const [{ absCol: fromCol, absRow: fromRow}, {absCol: toCol, absRow: toRow}] = [from, to];
-  const selectedPiece = board[fromRow][fromCol] as Piece;
-  const { type, color } = selectedPiece;
-  if (isEqual(from, to) || (color === board[toRow][toCol]?.color)) {
-    return { isValid: false }
-  }
-  let isValid = false;
-  // TODO: lots of refactoring can occur to simplify the code, these validations can be done upon
-  // piece selection and set in the selected piece's state such that validation is spread out
-  // and doesn't all occur on piece confirmation
-  switch (type) {
-    case Pawn:
-      isValid = some(getValidPawnMoves(from, boardState), to);
-      break;
-    case Bishop:
-      isValid = some(getValidBishopMoves(from, boardState), to);
-      break;
-    case Knight:
-      isValid = some(getValidKnightMoves(from, boardState), to);
-      break;
-    case Rook:
-      isValid = some(getValidRookMoves(from, boardState), to);
-      break;
-    case Queen:
-      isValid = some(getValidQueenMoves(from, boardState), to);
-      break;
-    case King:
-      isValid = some(getValidKingMoves(from, boardState), to);
-      break;
-  }
-  return { isValid }
-};
-
-export const isValidMove = (from: Square, to: Square, boardState: BoardState): MoveValidateReturn => {
-  const { isValid, taken } = isValidMoveHelper(from, to, boardState);
-  return { isValid: isValid && !inCheck(from, to, boardState), taken}
 }
 
 const TYPE_TO_VALID_MOVES_CALLBACK: ValidMovesMap = {
