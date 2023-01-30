@@ -1,6 +1,7 @@
+import { findIndex2d } from './misc';
 import { BOARD_SIDE_LEN } from './../constants/board';
-import type { MoveValidateReturn, PotentialMove, ValidMovesMap } from './../types/board';
-import { getLastMove } from './board';
+import type { PotentialMove, ValidMovesMap } from './../types/board';
+import { getLastMove, inverseColor } from './board';
 import { Pawn, Bishop, Knight, Rook, Queen, King, Black, White } from "../constants/board";
 import type { Square, BoardState } from "../types/board";
 import { inRange } from 'lodash';
@@ -72,8 +73,22 @@ const onDiagonal = ({ diffX, diffY }: Diffs) => {
 // Better approach seems to be checking if the piece is pinned to its own king and then validating whether the king is in check
 // An even better approach might be to iterate through all of the opponents pieces (max 16) and find all squares that are under
 // their control after the theoretical board mutation and if that includes the king then the move is invalid.
-const inCheck = (from: Square, to: Square, boardState: BoardState) => {
-  return false;
+export const inCheck = (boardState: BoardState) => {
+  const { board, turn } = boardState;
+  const [kingRow, kingCol] = findIndex2d(board, King, turn);
+  const attackedSquares = Array.from(Array(8), () => new Array(8).fill(false) as boolean[]);
+  console.log("fromHere");
+  for (const [rowIdx, row] of board.entries()) {
+    for (const [colIdx, piece] of row.entries()) {
+      if (piece && piece.color === inverseColor(turn)) {
+        const validMoves = getValidMoves(piece.type, {absRow: rowIdx, absCol: colIdx}, {...boardState, turn: inverseColor(turn)});
+        console.log(piece, validMoves)
+        // NOTE: Attacked squares for pawns are different than all other pieces - need to incorporate
+        validMoves.forEach((validMove) => attackedSquares[validMove.absRow][validMove.absCol] = true);
+      }
+    }
+  }
+  return attackedSquares[kingRow][kingCol];
 }
 
 const getValidQueenMoves = (from: Square, boardState: BoardState) => {
@@ -169,6 +184,6 @@ const TYPE_TO_VALID_MOVES_CALLBACK: ValidMovesMap = {
   [King]: getValidKingMoves
 }
 
-export const getValidMoves = (type: keyof ValidMovesMap, square: Square, boardState: BoardState): Square[] => {
+export const getValidMoves = (type: keyof ValidMovesMap, square: Square, boardState: BoardState): PotentialMove[] => {
   return TYPE_TO_VALID_MOVES_CALLBACK[type](square, boardState);
 }

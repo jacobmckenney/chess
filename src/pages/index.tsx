@@ -2,8 +2,6 @@ import { useCycle } from "framer-motion";
 import React, { useState } from "react";
 import useMeasure from "react-use-measure";
 import PieceDisplay from "../components/features/board/Piece";
-import Button from "../components/ui/Button";
-import ProfileBadge from "../components/ui/ProfileBadge";
 import { White, Black, INITIAL_BOARD } from "../constants/board";
 import type {
   MoveInfo,
@@ -15,7 +13,7 @@ import type {
 import type { BoardState, Color, Square } from "../types/board";
 import { inverseColor } from "../utils/board";
 import { reverse2d } from "../utils/misc";
-import { getValidMoves } from "../utils/move-validation";
+import { getValidMoves, inCheck } from "../utils/move-validation";
 import some from "lodash/some";
 import { find } from "lodash";
 
@@ -59,6 +57,40 @@ const getPieceInfo = (
   };
 };
 
+const getMutators = (
+  { absRow: fromRow, absCol: fromCol }: Square,
+  { absRow: toRow, absCol: toCol }: Square,
+  boardState: BoardState,
+  selectedPiece: Piece,
+  potentialMove: PotentialMove
+) => {
+  const { board } = boardState;
+  const fromPiece = board[fromRow][fromCol];
+  const toPiece = board[toRow][toCol];
+  let takenPiece: Piece | null;
+  // Mutate board
+  const mutate = () => {
+    if (potentialMove.taken) {
+      takenPiece =
+        board[potentialMove.taken.absRow][potentialMove.taken.absCol];
+      board[potentialMove.taken.absRow][potentialMove.taken.absCol] = null;
+    }
+    board[fromRow][fromCol] = null;
+    board[toRow][toCol] = selectedPiece;
+  };
+
+  const revert = () => {
+    // revert mutation because we don't deep copy the board for efficiency's sake
+    if (potentialMove.taken) {
+      board[potentialMove.taken.absRow][potentialMove.taken.absCol] =
+        takenPiece;
+    }
+    board[fromRow][fromCol] = fromPiece;
+    board[toRow][toCol] = toPiece;
+  };
+  return { mutate, revert };
+};
+
 const updateBoard = ({
   piece,
   isSelected,
@@ -67,6 +99,7 @@ const updateBoard = ({
   selection,
   setSelection,
   setBoardState,
+  cyclePov,
 }: UpdateBoardArgs) => {
   const {
     board,
@@ -87,10 +120,21 @@ const updateBoard = ({
   const potentialMove = find(selection.validMoves, to as PotentialMove);
   if (!potentialMove) return;
   const selected = selection.square;
-  // Update board
-  const { absRow: fromRow, absCol: fromCol } = selected;
-  const { absRow: toRow, absCol: toCol } = to;
   const selectedPiece = board[selected.absRow][selected.absCol] as Piece;
+  // Update board
+  const { mutate, revert } = getMutators(
+    selected,
+    to,
+    boardState,
+    selectedPiece,
+    potentialMove
+  );
+  mutate();
+  if (inCheck(boardState)) {
+    revert();
+    return;
+  }
+  // commit state change
   selectedPiece.numMoves++;
   const newMove = { piece: selectedPiece, from: selected, to };
   const [newWhite, newBlack] = [
@@ -98,12 +142,6 @@ const updateBoard = ({
     getNextMove(black, newMove, inverseColor(turn)),
   ];
   setBoardState((prev) => {
-    const { board } = prev;
-    if (potentialMove.taken) {
-      board[potentialMove.taken.absRow][potentialMove.taken.absCol] = null;
-    }
-    board[fromRow][fromCol] = null;
-    board[toRow][toCol] = selectedPiece;
     // Log move
     return {
       ...prev,
@@ -117,6 +155,7 @@ const updateBoard = ({
     };
   });
   setSelection(null);
+  cyclePov();
 };
 
 const Board: React.FC<Props> = ({}) => {
@@ -129,15 +168,12 @@ const Board: React.FC<Props> = ({}) => {
     moves: { white: [], black: [], move: 0 },
     board: INITIAL_BOARD,
   });
-  const { white, black, board } = boardState;
+  const { board, turn } = boardState;
 
   const [ref, { height, width }] = useMeasure();
   const boardLen = Math.min(height - height * 0.15, width - width * 0.15);
   const squareLen = boardLen / 8;
   const pieceSize = squareLen * 0.9;
-
-  const user = pov ? white : black;
-  const opponent = pov ? black : white;
 
   const getDisplayBoard = (board: (Piece | null)[][]) => {
     return pov ? board : reverse2d<Piece | null>(board);
@@ -149,10 +185,6 @@ const Board: React.FC<Props> = ({}) => {
       ref={ref}
       className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-[#2e026d] to-[#15162c] text-white"
     >
-      <div>
-        <ProfileBadge user={opponent} />
-        <Button action={cyclePov}>Switch Pov</Button>
-      </div>
       <div
         className="grid grid-cols-8 bg-black shadow-md shadow-black"
         style={{ width: boardLen, height: boardLen }}
@@ -172,6 +204,7 @@ const Board: React.FC<Props> = ({}) => {
                     selection: selection,
                     setSelection,
                     setBoardState,
+                    cyclePov,
                   })
                 }
                 key={`${rowIdx}${colIdx}`}
@@ -183,7 +216,8 @@ const Board: React.FC<Props> = ({}) => {
                     : colIdx % 2 == rowIdx % 2
                     ? "bg-gray-400"
                     : "bg-white"
-                }`}
+                }
+                ${piece?.color === turn ? "cursor-pointer" : "cursor-default"}`}
               >
                 <div className="absolute top-0 left-0 text-sm">{`${displayFile}${displayRank}`}</div>
                 {piece ? (
@@ -196,7 +230,6 @@ const Board: React.FC<Props> = ({}) => {
           })
         )}
       </div>
-      <ProfileBadge user={user} />
     </div>
   );
 };

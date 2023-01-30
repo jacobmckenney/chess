@@ -1,3 +1,5 @@
+import type { Cycle } from "framer-motion";
+
 export enum Color {
     White = 1,
     Black = 0,
@@ -64,6 +66,7 @@ export type UpdateBoardArgs = {
     selection: Selection | null,
     setSelection: React.Dispatch<React.SetStateAction<Selection | null>>,
     setBoardState: React.Dispatch<React.SetStateAction<BoardState>>,
+    cyclePov: Cycle
 }
 
 export type MoveValidateReturn = {
