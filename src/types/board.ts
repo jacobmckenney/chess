@@ -31,6 +31,7 @@ export type Piece = {
     color: Color,
     type: Type,
     value: number,
+    numMoves: number,
 }
 
 export type Moves = {
@@ -58,5 +59,9 @@ export type UpdateBoardArgs = {
     selected: Square | null,
     setSelected: React.Dispatch<React.SetStateAction<Square | null>>,
     setBoardState: React.Dispatch<React.SetStateAction<BoardState>>,
+}
 
+export type MoveValidateReturn = {
+    taken?: Square,
+    isValid: boolean,
 }

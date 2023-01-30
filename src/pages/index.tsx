@@ -4,14 +4,10 @@ import useMeasure from "react-use-measure";
 import PieceDisplay from "../components/features/board/Piece";
 import Button from "../components/ui/Button";
 import ProfileBadge from "../components/ui/ProfileBadge";
-import {
-  INITIAL_BOARD_BLACK,
-  INITIAL_BOARD_WHITE,
-  White,
-  Black,
-} from "../constants/board";
-import type { Piece, UpdateBoardArgs } from "../types/board";
+import { White, Black, INITIAL_BOARD } from "../constants/board";
+import type { MoveInfo, Piece, UpdateBoardArgs } from "../types/board";
 import type { BoardState, Color, Square } from "../types/board";
+import { inverseColor } from "../utils/board";
 import { reverse2d } from "../utils/misc";
 import { isValidMove } from "../utils/move-validation";
 
@@ -53,34 +49,51 @@ const updateBoard = ({
   setSelected,
   setBoardState,
 }: UpdateBoardArgs) => {
-  const { board, turn } = boardState;
+  const {
+    board,
+    turn,
+    moves: { white, black },
+  } = boardState;
   if (piece && turn === piece.color) {
     setSelected(isSelected ? null : to);
   }
-  if (!selected || !isValidMove(selected, to, boardState)) return;
+  if (!selected) return;
+  const { isValid, taken } = isValidMove(selected, to, boardState);
+  if (!isValid) return;
   // Update board
   const { absRow: fromRow, absCol: fromCol } = selected;
   const { absRow: toRow, absCol: toCol } = to;
   const selectedPiece = board[selected.absRow][selected.absCol] as Piece;
+  selectedPiece.numMoves++;
+  const getNextMove = (
+    arr: MoveInfo[],
+    move: MoveInfo,
+    turn: Color
+  ): MoveInfo[] => {
+    if (turn) {
+      arr.push(move);
+    }
+    return arr;
+  };
+  const newMove = { piece: selectedPiece, from: selected, to };
+  const [newWhite, newBlack] = [
+    getNextMove(white, newMove, turn),
+    getNextMove(black, newMove, inverseColor(turn)),
+  ];
   setBoardState((prev) => {
-    const {
-      board,
-      moves: { move, white, black },
-    } = prev;
+    const { board } = prev;
+    if (taken) {
+      board[taken.absRow][taken.absCol] = null;
+    }
     board[fromRow][fromCol] = null;
     board[toRow][toCol] = selectedPiece;
     // Log move
-    (turn ? white : black)[move] = {
-      piece: selectedPiece,
-      from: selected,
-      to,
-    };
     return {
       ...prev,
       moves: {
-        white,
-        black,
-        move: prev.turn === White ? move : move + 1,
+        white: newWhite,
+        black: newBlack,
+        move: prev.moves.move + 1,
       },
       board,
       turn: prev.turn === White ? Black : White,
@@ -89,7 +102,7 @@ const updateBoard = ({
   setSelected(null);
 };
 
-const Board: React.FC<Props> = ({ gameId, isWhite }) => {
+const Board: React.FC<Props> = ({}) => {
   const [pov, cyclePov] = useCycle<Color>(White, Black);
   const [selected, setSelected] = useState<Square | null>(null);
   const [boardState, setBoardState] = useState<BoardState>({
@@ -97,7 +110,7 @@ const Board: React.FC<Props> = ({ gameId, isWhite }) => {
     black: { name: "spence", elo: 2500 },
     turn: White,
     moves: { white: [], black: [], move: 0 },
-    board: pov ? INITIAL_BOARD_WHITE : INITIAL_BOARD_BLACK,
+    board: INITIAL_BOARD,
   });
   const { white, black, board } = boardState;
 
