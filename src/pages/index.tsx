@@ -5,11 +5,17 @@ import PieceDisplay from "../components/features/board/Piece";
 import Button from "../components/ui/Button";
 import ProfileBadge from "../components/ui/ProfileBadge";
 import { White, Black, INITIAL_BOARD } from "../constants/board";
-import type { MoveInfo, Piece, UpdateBoardArgs } from "../types/board";
+import type {
+  MoveInfo,
+  Piece,
+  Selection,
+  UpdateBoardArgs,
+} from "../types/board";
 import type { BoardState, Color, Square } from "../types/board";
 import { inverseColor } from "../utils/board";
 import { reverse2d } from "../utils/misc";
-import { isValidMove } from "../utils/move-validation";
+import { getValidMoves } from "../utils/move-validation";
+import some from "lodash/some";
 
 interface Props {
   gameId: string;
@@ -45,8 +51,8 @@ const updateBoard = ({
   isSelected,
   to,
   boardState,
-  selected,
-  setSelected,
+  selection,
+  setSelection,
   setBoardState,
 }: UpdateBoardArgs) => {
   const {
@@ -55,11 +61,17 @@ const updateBoard = ({
     moves: { white, black },
   } = boardState;
   if (piece && turn === piece.color) {
-    setSelected(isSelected ? null : to);
+    setSelection(
+      isSelected
+        ? null
+        : {
+            square: to,
+            validMoves: getValidMoves(piece.type, to, boardState),
+          }
+    );
   }
-  if (!selected) return;
-  const { isValid, taken } = isValidMove(selected, to, boardState);
-  if (!isValid) return;
+  if (!selection || !some(selection.validMoves, to)) return;
+  const selected = selection.square;
   // Update board
   const { absRow: fromRow, absCol: fromCol } = selected;
   const { absRow: toRow, absCol: toCol } = to;
@@ -82,9 +94,9 @@ const updateBoard = ({
   ];
   setBoardState((prev) => {
     const { board } = prev;
-    if (taken) {
-      board[taken.absRow][taken.absCol] = null;
-    }
+    // if (taken) {
+    //   board[taken.absRow][taken.absCol] = null;
+    // }
     board[fromRow][fromCol] = null;
     board[toRow][toCol] = selectedPiece;
     // Log move
@@ -99,12 +111,12 @@ const updateBoard = ({
       turn: prev.turn === White ? Black : White,
     };
   });
-  setSelected(null);
+  setSelection(null);
 };
 
 const Board: React.FC<Props> = ({}) => {
   const [pov, cyclePov] = useCycle<Color>(White, Black);
-  const [selected, setSelected] = useState<Square | null>(null);
+  const [selection, setSelection] = useState<Selection | null>(null);
   const [boardState, setBoardState] = useState<BoardState>({
     white: { name: "jake", elo: 2000 },
     black: { name: "spence", elo: 2500 },
@@ -143,7 +155,7 @@ const Board: React.FC<Props> = ({}) => {
         {displayBoard.map((pieceRow, rowIdx) =>
           pieceRow.map((piece, colIdx) => {
             const { square, isSelected, displayRank, displayFile } =
-              getPieceInfo(rowIdx, colIdx, pov, selected);
+              getPieceInfo(rowIdx, colIdx, pov, selection?.square ?? null);
             return (
               <div
                 onClick={() =>
@@ -152,8 +164,8 @@ const Board: React.FC<Props> = ({}) => {
                     isSelected,
                     to: square,
                     boardState,
-                    selected,
-                    setSelected,
+                    selection: selection,
+                    setSelection,
                     setBoardState,
                   })
                 }
@@ -161,6 +173,8 @@ const Board: React.FC<Props> = ({}) => {
                 className={`relative flex items-center justify-center text-black ${
                   isSelected
                     ? "bg-red-500"
+                    : some(selection?.validMoves, square)
+                    ? "bg-green-400"
                     : colIdx % 2 == rowIdx % 2
                     ? "bg-gray-400"
                     : "bg-white"

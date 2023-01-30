@@ -12,6 +12,7 @@ export enum Type {
     King = "king",
 }
 
+
 export type PublicUserInfo = {
     name: string,
     elo: number,
@@ -56,8 +57,8 @@ export type UpdateBoardArgs = {
     isSelected: boolean,
     to: Square,
     boardState: BoardState,
-    selected: Square | null,
-    setSelected: React.Dispatch<React.SetStateAction<Square | null>>,
+    selection: Selection | null,
+    setSelection: React.Dispatch<React.SetStateAction<Selection | null>>,
     setBoardState: React.Dispatch<React.SetStateAction<BoardState>>,
 }
 
@@ -65,3 +66,11 @@ export type MoveValidateReturn = {
     taken?: Square,
     isValid: boolean,
 }
+
+export type Selection = {
+    square: Square,
+    validMoves: Square[],
+}
+
+export type ValidMovesCallback = (from: Square, boardState: BoardState) => Square[];
+export type ValidMovesMap = {[key in Type]: ValidMovesCallback};

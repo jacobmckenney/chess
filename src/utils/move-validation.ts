@@ -1,8 +1,14 @@
-import type { MoveValidateReturn } from './../types/board';
+import { BOARD_SIDE_LEN } from './../constants/board';
+import type { Board, MoveValidateReturn, Type, ValidMovesCallback, ValidMovesMap } from './../types/board';
 import { getLastMove } from './board';
 import { isEqual } from "lodash";
 import { Pawn, Bishop, Knight, Rook, Queen, King, Black, White } from "../constants/board";
 import type { Square, BoardState, Piece } from "../types/board";
+import { inRange } from 'lodash';
+import { some } from 'lodash';
+
+const KING_DELTAS = [-1, 0, 1];
+const KNIGHT_DELTAS = [[1, 2], [-1, 2], [1, -2], [-1, -2], [2, 1], [-2, 1], [2, -1], [-2, -1]];
 
 type Diffs = {
   diffX: number,
@@ -51,8 +57,6 @@ const onCol = ({ diffX }: Diffs) => {
     return diffX == 0;
 }
 
-const onCross = (diffs: Diffs) => onRow(diffs) || onCol(diffs);
-
 const onDiagonal = ({ diffX, diffY }: Diffs) => {
   return diffX - diffY === 0;
 };
@@ -74,15 +78,32 @@ const inCheck = (from: Square, to: Square, boardState: BoardState) => {
   return false;
 }
 
-const isValidQueenMove = (from: Square, to: Square, boardState: BoardState, diffs: Diffs) => ({ isValid: (onCol(diffs) || onDiagonal(diffs)) && !isBlocked(from, to, boardState, diffs)});
+const getValidQueenMoves = (from: Square, boardState: BoardState) => {
+  // Just get valid bishop moves and valid rook moves
+  return [...getValidBishopMoves(from, boardState), ...getValidRookMoves(from, boardState)];
+};
 
-const isValidKnightMove = ({ diffX, diffY}: Diffs) => {
-  return { isValid: (diffX === 2 && diffY === 1) || (diffX === 1 && diffY === 2) };
+const getValidKnightMoves = ({absRow, absCol}: Square, boardState: BoardState) => {
+  const moves: Square[] = [];
+  KNIGHT_DELTAS.map(([dy, dx]) => {
+    validateAndPush(moves, { absRow: absRow + dy, absCol: absCol + dx }, boardState);
+  });
+  return moves;
 }
 
-const isValidKingMove = (from: Square, to: Square, boardState: BoardState, { diffX, diffY }: Diffs) => {
-  return { isValid: (diffX === 1 || diffY === 1) };
+const validateAndPush = (moves: Square[], potential: Square, { board, turn }: BoardState) => {
+  isInBounds(potential) && board[potential.absRow][potential.absCol]?.color !== turn && moves.push(potential);
 }
+
+const getValidKingMoves = (from : Square, boardState: BoardState): Square[] => {
+  const moves: Square[] = [];
+  KING_DELTAS.forEach((dy: number) => KING_DELTAS.forEach((dx) => {
+    validateAndPush(moves, { absRow: from.absRow + dy, absCol: from.absCol + dx }, boardState)
+  }));
+  return moves;
+}
+
+const isInBounds  = (square: Square) => inRange(square.absRow, 0, BOARD_SIDE_LEN) && inRange(square.absCol, 0, BOARD_SIDE_LEN);
 
 const isValidPawnMove = (from: Square, to: Square, { turn, board, moves }: BoardState, diffs: Diffs) => {
   const lastMove = getLastMove(moves, turn);
@@ -101,8 +122,41 @@ const isValidPawnMove = (from: Square, to: Square, { turn, board, moves }: Board
   return { isValid, ...(isTakingEnPassant && {taken: { absRow: epTakenRow, absCol: toCol}}) };
 }
 
-const isValidBishopMove = (from: Square, to: Square, boardState: BoardState, diffs: Diffs) => ({ isValid: onDiagonal(diffs) && !isBlocked(from, to, boardState, diffs)})
-const isValidRookMove = (from: Square, to: Square, boardState: BoardState, diffs: Diffs) => ({ isValid: (onCross(diffs)) && !isBlocked(from, to, boardState, diffs)})
+const getValidPawnMoves = (from: Square, boardState: BoardState) => {
+  const { turn } = boardState;
+  const { absRow, absCol } = from;
+  const checks = [
+    { absRow: absRow + (turn ? -1 : 1), absCol }, // Forward 1
+    { absRow: absRow + (turn ? -2 : 2), absCol }, // Forward 2
+    { absRow: absRow + (turn ? -1 : 1), absCol: absCol + 1}, // Take or en passant
+    { absRow: absRow + (turn ? -1 : 1), absCol: absCol - 1} // Take or en passant
+  ]
+  return checks.filter(check => isValidPawnMove(from, check, boardState, getDiffs(from, check)).isValid)
+}
+
+const getValidBishopMoves = (from: Square, boardState: BoardState) => {
+  const { absRow, absCol } = from;
+  const moves: Square[] = [];
+  for (let i = 1; i < 8; i++) {
+    validateAndPush(moves, { absRow: absRow + i, absCol: absCol + i }, boardState);
+    validateAndPush(moves, { absRow: absRow - i, absCol: absCol + i }, boardState);
+    validateAndPush(moves, { absRow: absRow + i, absCol: absCol - i }, boardState);
+    validateAndPush(moves, { absRow: absRow - i, absCol: absCol - i }, boardState);
+  }
+  return moves.filter((potential) => !isBlocked(from, potential, boardState, getDiffs(from, potential)))
+};
+
+const getValidRookMoves = (from: Square, boardState: BoardState) => {
+  const { absRow, absCol } = from;
+  const moves: Square[] = [];
+  for (let i = 0; i < 8; i++) {
+    validateAndPush(moves, { absRow: absRow + i, absCol: absCol }, boardState);
+    validateAndPush(moves, { absRow: absRow - i, absCol: absCol}, boardState);
+    validateAndPush(moves, { absRow: absRow, absCol: absCol + i }, boardState);
+    validateAndPush(moves, { absRow: absRow, absCol: absCol - i }, boardState);
+  }
+  return moves.filter((potential) => !isBlocked(from, potential, boardState, getDiffs(from, potential)));
+}
 
 // This will be a pretty complicated function, need to incorporate castling, en passant, knight moves, etc.
 // probably should just calculate all possible squares and just containment conditional so that the
@@ -113,29 +167,50 @@ const isValidMoveHelper = (from: Square, to: Square, boardState: BoardState): Mo
   const [{ absCol: fromCol, absRow: fromRow}, {absCol: toCol, absRow: toRow}] = [from, to];
   const selectedPiece = board[fromRow][fromCol] as Piece;
   const { type, color } = selectedPiece;
-  const diffs = getDiffs(from, to);
   if (isEqual(from, to) || (color === board[toRow][toCol]?.color)) {
     return { isValid: false }
   }
+  let isValid = false;
+  // TODO: lots of refactoring can occur to simplify the code, these validations can be done upon
+  // piece selection and set in the selected piece's state such that validation is spread out
+  // and doesn't all occur on piece confirmation
   switch (type) {
     case Pawn:
-      return isValidPawnMove(from, to, boardState, diffs);
+      isValid = some(getValidPawnMoves(from, boardState), to);
+      break;
     case Bishop:
-      return isValidBishopMove(from, to, boardState, diffs);
+      isValid = some(getValidBishopMoves(from, boardState), to);
+      break;
     case Knight:
-      return isValidKnightMove(diffs);
+      isValid = some(getValidKnightMoves(from, boardState), to);
+      break;
     case Rook:
-        return isValidRookMove(from, to, boardState, diffs);
+      isValid = some(getValidRookMoves(from, boardState), to);
+      break;
     case Queen:
-        return isValidQueenMove(from, to, boardState, diffs);
+      isValid = some(getValidQueenMoves(from, boardState), to);
+      break;
     case King:
-        return isValidKingMove(from, to, boardState, diffs);
-    default:
-        return { isValid: false };
+      isValid = some(getValidKingMoves(from, boardState), to);
+      break;
   }
+  return { isValid }
 };
 
 export const isValidMove = (from: Square, to: Square, boardState: BoardState): MoveValidateReturn => {
-  const { isValid, taken} = isValidMoveHelper(from, to, boardState);
+  const { isValid, taken } = isValidMoveHelper(from, to, boardState);
   return { isValid: isValid && !inCheck(from, to, boardState), taken}
+}
+
+const TYPE_TO_VALID_MOVES_CALLBACK: ValidMovesMap = {
+  [Pawn]: getValidPawnMoves,
+  [Bishop]: getValidBishopMoves,
+  [Knight]: getValidKnightMoves,
+  [Rook]: getValidRookMoves,
+  [Queen]: getValidQueenMoves,
+  [King]: getValidKingMoves
+}
+
+export const getValidMoves = (type: keyof ValidMovesMap, square: Square, boardState: BoardState): Square[] => {
+  return TYPE_TO_VALID_MOVES_CALLBACK[type](square, boardState);
 }
