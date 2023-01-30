@@ -57,6 +57,15 @@ const onDiagonal = ({ diffX, diffY }: Diffs) => {
   return diffX - diffY === 0;
 };
 
+// TODO: Calculate if King is in checkmate - this could be tricky because we need to validate four things
+// 1. King is in check
+// 2. King has no valid squares to move to
+// 3. Checking piece can't be taken
+// 4. King can't be blocked by another one of its pieces
+// Because of this I might want to move to a new form of validation where all valid squares for every piece are
+// calculated on every move (non-blocking, while players are playing) and then these calculations are used to make
+// these decisions on time of move confirmation
+
 // How to calculate this efficiently? Could iterate through every piece and check for contact with king... seems inefficient
 // Better approach seems to be checking if the piece is pinned to its own king and then validating whether the king is in check
 // An even better approach might be to iterate through all of the opponents pieces (max 16) and find all squares that are under

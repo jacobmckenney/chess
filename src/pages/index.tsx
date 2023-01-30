@@ -1,5 +1,5 @@
 import { useCycle } from "framer-motion";
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import useMeasure from "react-use-measure";
 import PieceDisplay from "../components/features/board/Piece";
 import Button from "../components/ui/Button";
