@@ -2,7 +2,7 @@ import { useCycle } from "framer-motion";
 import React, { useState } from "react";
 import useMeasure from "react-use-measure";
 import PieceDisplay from "../components/features/board/Piece";
-import { White, Black, INITIAL_BOARD } from "../constants/board";
+import { White, Black, INITIAL_BOARD, King } from "../constants/board";
 import type {
   MoveInfo,
   Piece,
@@ -12,10 +12,10 @@ import type {
 } from "../types/board";
 import type { BoardState, Color, Square } from "../types/board";
 import { inverseColor } from "../utils/board";
-import { reverse2d } from "../utils/misc";
-import { getValidMoves, inCheck } from "../utils/move-validation";
+import { findPiece, reverse2d } from "../utils/misc";
+import { getValidMoves, squaresUnderAttackBy } from "../utils/move-validation";
 import some from "lodash/some";
-import { add, find } from "lodash";
+import find from "lodash/find";
 
 interface Props {
   gameId: string;
@@ -142,7 +142,13 @@ const updateBoard = ({
     potentialMove
   );
   mutate();
-  if (inCheck(boardState)) {
+  if (
+    squaresUnderAttackBy(
+      boardState,
+      [findPiece(board, King, turn)],
+      inverseColor(turn)
+    )
+  ) {
     revert();
     return;
   }
@@ -197,7 +203,6 @@ const Board: React.FC<Props> = ({}) => {
       ref={ref}
       className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-[#2e026d] to-[#15162c] text-white"
     >
-      {JSON.stringify(selection)}
       <div
         className="grid grid-cols-8 bg-black shadow-md shadow-black"
         style={{ width: boardLen, height: boardLen }}

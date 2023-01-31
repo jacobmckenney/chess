@@ -1,4 +1,4 @@
-import type { Color } from './../types/board';
+import type { Board, Color, Square } from './../types/board';
 import type { Piece, Type } from "../types/board";
 
 export const reverse2d = <T = any>(arr: T[][]): T[][] => {
@@ -7,12 +7,12 @@ export const reverse2d = <T = any>(arr: T[][]): T[][] => {
 }
 
 // TODO: generalize this
-export const findIndex2d = (arr: (Piece | null)[][], type: Type, color: Color ): number[] => {
-    for (let i = 0; i < arr.length; i++) {
-        const find = arr[i].findIndex((value) => value ? (value.color === color && value.type === type) : false );
+export const findPiece = (board: Board, type: Type, color: Color ): Square => {
+    for (let i = 0; i < board.length; i++) {
+        const find = board[i].findIndex((value) => value ? (value.color === color && value.type === type) : false );
         if (find > -1) {
-            return [i, find];
+            return { absRow: i, absCol: find};
         }
     }
-    return [-1, -1]
+    return { absRow: -1, absCol: -1};
 }
