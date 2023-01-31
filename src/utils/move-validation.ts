@@ -12,19 +12,7 @@ type Diffs = {
   diffX: number,
   diffY: number,
 }
-
-const isBlocked = (from: Square, to: Square, boardState: BoardState) => {
-  const { board } = boardState;
-  return getSquaresBetween(from, to).some(square => board[square.absRow][square.absCol] !== null);
-};
-
-const getDiffs = (from: Square, to: Square) => {
-  const diffX = Math.abs(from.absCol - to.absCol);
-  const diffY = Math.abs(from.absRow - to.absRow);
-  return { diffX, diffY };
-}
-
-
+// utils
 const onRow = ({ diffY }: Diffs) => {
     return diffY == 0;
 }
@@ -64,6 +52,18 @@ const getSquaresBetween = (from: Square, to: Square): Square[] => {
   }
   return squares;
 }
+const isBlocked = (from: Square, to: Square, boardState: BoardState) => {
+  const { board } = boardState;
+  return getSquaresBetween(from, to).some(square => board[square.absRow][square.absCol] !== null);
+};
+
+const getDiffs = (from: Square, to: Square) => {
+  const diffX = Math.abs(from.absCol - to.absCol);
+  const diffY = Math.abs(from.absRow - to.absRow);
+  return { diffX, diffY };
+}
+
+
 // TODO: Calculate if King is in checkmate - this could be tricky because we need to validate four things
 // 1. King is in check
 // 2. King has no valid squares to move to
@@ -72,6 +72,11 @@ const getSquaresBetween = (from: Square, to: Square): Square[] => {
 // Because of this I might want to move to a new form of validation where all valid squares for every piece are
 // calculated on every move (non-blocking, while players are playing) and then these calculations are used to make
 // these decisions on time of move confirmation
+// TODO: integrate inCheck with this function and do both calculations at the same time
+const checkOrMate = () => {
+  return false;
+}
+
 const getPawnAttackSquares = (piece: Piece, {absRow, absCol}: Square, boardState: BoardState) => {
   const squares: PotentialMove[] = [];
   if (piece.color) {
@@ -100,43 +105,18 @@ export const squaresUnderAttackBy = (boardState: BoardState, checkSquares: Squar
   return checkSquares.some(check => attackedSquares[check.absRow][check.absCol]);
 }
 
-const getValidQueenMoves = (from: Square, boardState: BoardState) => {
-  // Just get valid bishop moves and valid rook moves
-  return [...getValidBishopMoves(from, boardState), ...getValidRookMoves(from, boardState)];
-};
 
-const getValidKnightMoves = ({absRow, absCol}: Square, boardState: BoardState) => {
-  const moves: Square[] = [];
-  KNIGHT_DELTAS.map(([dy, dx]) => {
-    validateAndPush(moves, { absRow: absRow + dy, absCol: absCol + dx }, boardState);
-  });
-  return moves;
-}
 
 const validateAndPush = (moves: Square[], potential: Square, { board, turn }: BoardState) => {
   isInBounds(potential) && board[potential.absRow][potential.absCol]?.color !== turn && moves.push(potential);
 }
 
-const getValidKingMoves = (from : Square, boardState: BoardState): PotentialMove[] => {
-  const { board, turn} = boardState;
-  const { absRow: fromRow, absCol: fromCol} = from;
-  const moves: PotentialMove[] = [];
-  KING_DELTAS.forEach((dy: number) => KING_DELTAS.forEach((dx) => {
-    validateAndPush(moves, { absRow: fromRow + dy, absCol: fromCol + dx }, boardState)
-  }));
-  // Account for castling
-  return moves;
-}
 
 export const getCastleMoves = (from: Square, boardState: BoardState) => {
   const { board, turn } = boardState;
   const moves: PotentialMove[] = [];
   const {absRow: fromRow, absCol: fromCol} = from;
   if (board[fromRow][fromCol]?.numMoves === 0) {
-    // TODO: ENSURE no one is attacking the castle squares - currently unaccounted for
-    // do this by augmenting the inCheck method to take a square to verify against and then just see if that square is
-    // "in check" for each square between the rook and the king
-    // DIFFICULTY: Do this in a non-recursive way
     const toShortRook = {absRow: fromRow, absCol: fromCol + 3 };
     const shortCastleRook = board[fromRow][fromCol + 3];
     if (shortCastleRook && shortCastleRook.numMoves === 0 && !isBlocked(from, toShortRook, boardState)) {
@@ -199,6 +179,14 @@ const getValidBishopMoves = (from: Square, boardState: BoardState) => {
   return moves.filter((potential) => !isBlocked(from, potential, boardState))
 };
 
+const getValidKnightMoves = ({absRow, absCol}: Square, boardState: BoardState) => {
+  const moves: Square[] = [];
+  KNIGHT_DELTAS.map(([dy, dx]) => {
+    validateAndPush(moves, { absRow: absRow + dy, absCol: absCol + dx }, boardState);
+  });
+  return moves;
+}
+
 const getValidRookMoves = (from: Square, boardState: BoardState) => {
   const { absRow, absCol } = from;
   const moves: Square[] = [];
@@ -211,6 +199,20 @@ const getValidRookMoves = (from: Square, boardState: BoardState) => {
   return moves.filter((potential) => !isBlocked(from, potential, boardState));
 }
 
+const getValidQueenMoves = (from: Square, boardState: BoardState) => {
+  // Just get valid bishop moves and valid rook moves
+  return [...getValidBishopMoves(from, boardState), ...getValidRookMoves(from, boardState)];
+};
+// NOTE: this does not include castling - castling moves need to be retrieved using getCastleMoves() helper
+const getValidKingMoves = (from : Square, boardState: BoardState): PotentialMove[] => {
+  const { absRow: fromRow, absCol: fromCol} = from;
+  const moves: PotentialMove[] = [];
+  KING_DELTAS.forEach((dy: number) => KING_DELTAS.forEach((dx) => {
+    validateAndPush(moves, { absRow: fromRow + dy, absCol: fromCol + dx }, boardState)
+  }));
+  return moves;
+}
+
 const TYPE_TO_VALID_MOVES_CALLBACK: ValidMovesMap = {
   [Pawn]: getValidPawnMoves,
   [Bishop]: getValidBishopMoves,
@@ -220,6 +222,12 @@ const TYPE_TO_VALID_MOVES_CALLBACK: ValidMovesMap = {
   [King]: getValidKingMoves
 }
 
-export const getValidMoves = (type: keyof ValidMovesMap, square: Square, boardState: BoardState): PotentialMove[] => {
+// Used in squareUnderAttack and getAllValidMoves
+const getValidMoves = (type: keyof ValidMovesMap, square: Square, boardState: BoardState): PotentialMove[] => {
   return TYPE_TO_VALID_MOVES_CALLBACK[type](square, boardState);
 }
+
+export const getAllValidMoves = (type: keyof ValidMovesMap, square: Square, boardState: BoardState): PotentialMove[] => [
+  ...getValidMoves(type, square, boardState),
+  ...(type === King ? getCastleMoves(square, boardState) : []),
+]

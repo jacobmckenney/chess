@@ -14,8 +14,7 @@ import type { BoardState, Color, Square } from "../types/board";
 import { inverseColor } from "../utils/board";
 import { findPiece, reverse2d } from "../utils/misc";
 import {
-  getCastleMoves,
-  getValidMoves,
+  getAllValidMoves,
   squaresUnderAttackBy,
 } from "../utils/move-validation";
 import some from "lodash/some";
@@ -71,27 +70,26 @@ const getMutators = (
   const { board } = boardState;
   const fromPiece = board[fromRow][fromCol];
   const toPiece = board[toRow][toCol];
+  const { taken, additional } = potentialMove;
   let takenPiece: Piece | null;
   let additionalPiece: Piece | null;
-  // Mutate board
   const mutate = () => {
+    // Mutate board
     board[fromRow][fromCol] = null;
     board[toRow][toCol] = selectedPiece;
-    if (potentialMove.taken) {
-      const {
-        taken: { absRow: takenRow, absCol: takenCol },
-      } = potentialMove;
+    if (taken) {
+      // Used for en passant where piece is taken that isn't where moved piece lands
+      const { absRow: takenRow, absCol: takenCol } = taken;
       takenPiece = board[takenRow][takenCol];
       board[takenRow][takenCol] = null;
     }
-    if (potentialMove.additional) {
+    if (additional) {
+      // Used for castling where the rook moves without being touched
       const {
-        additional: {
-          to: { absRow: aToRow, absCol: aToCol },
-          from: { absRow: aFromRow, absCol: aFromCol },
-          piece,
-        },
-      } = potentialMove;
+        to: { absRow: aToRow, absCol: aToCol },
+        from: { absRow: aFromRow, absCol: aFromCol },
+        piece,
+      } = additional;
       additionalPiece = board[aFromRow][aFromCol];
       board[aFromRow][aFromCol] = null;
       board[aToRow][aToCol] = piece;
@@ -100,19 +98,15 @@ const getMutators = (
 
   const revert = () => {
     // revert mutation because we don't deep copy the board for efficiency's sake
-    if (potentialMove.taken) {
-      const {
-        taken: { absRow: takenRow, absCol: takenCol },
-      } = potentialMove;
+    if (taken) {
+      const { absRow: takenRow, absCol: takenCol } = taken;
       board[takenRow][takenCol] = takenPiece;
     }
-    if (potentialMove.additional) {
+    if (additional) {
       const {
-        additional: {
-          to: { absRow: aToRow, absCol: aToCol },
-          from: { absRow: aFromRow, absCol: aFromCol },
-        },
-      } = potentialMove;
+        to: { absRow: aToRow, absCol: aToCol },
+        from: { absRow: aFromRow, absCol: aFromCol },
+      } = additional;
       board[aToRow][aToCol] = null;
       board[aFromRow][aFromCol] = additionalPiece;
     }
@@ -137,20 +131,19 @@ const updateBoard = ({
     turn,
     moves: { white, black },
   } = boardState;
+  // Select the clicked piece or revert if it's already selected
   if (piece && turn === piece.color) {
     setSelection(
       isSelected
         ? null
         : {
             square: to,
-            validMoves: [
-              ...getValidMoves(piece.type, to, boardState),
-              ...(piece.type === King ? getCastleMoves(to, boardState) : []),
-            ],
+            validMoves: getAllValidMoves(piece.type, to, boardState), // TODO: if the king is in check only include blocking moves
           }
     );
   }
   if (!selection) return;
+  // Check to see if the desired square is within the valid moves for given piece
   const potentialMove = find(selection.validMoves, to as PotentialMove);
   if (!potentialMove) return;
   const selected = selection.square;
@@ -225,7 +218,6 @@ const Board: React.FC<Props> = ({}) => {
       ref={ref}
       className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-[#2e026d] to-[#15162c] text-white"
     >
-      {JSON.stringify(selection)}
       <div
         className="grid grid-cols-8 bg-black shadow-md shadow-black"
         style={{ width: boardLen, height: boardLen }}
