@@ -1,5 +1,5 @@
 import { findIndex2d } from './misc';
-import { BOARD_SIDE_LEN } from './../constants/board';
+import { BOARD_SIDE_LEN, CASTLE_SHORT, CASTLE_LONG } from './../constants/board';
 import type { PotentialMove, ValidMovesMap } from './../types/board';
 import { getLastMove, inverseColor } from './board';
 import { Pawn, Bishop, Knight, Rook, Queen, King, Black, White } from "../constants/board";
@@ -13,6 +13,7 @@ type Diffs = {
   diffX: number,
   diffY: number,
 }
+// TOOD: instead of from, to, just use MoveInfo instead
 
 const isBlocked = (from: Square, to: Square, boardState: BoardState, diffs: Diffs) => {
   const { board } = boardState;
@@ -83,7 +84,8 @@ export const inCheck = (boardState: BoardState) => {
       if (piece && piece.color === inverseColor(turn)) {
         const validMoves = getValidMoves(piece.type, {absRow: rowIdx, absCol: colIdx}, {...boardState, turn: inverseColor(turn)});
         console.log(piece, validMoves)
-        // NOTE: Attacked squares for pawns are different than all other pieces - need to incorporate
+        // HUGE TODO: Attacked squares for pawns are different than all other pieces - need to incorporate
+        // ITS A BUG that I haven't yet accounted for
         validMoves.forEach((validMove) => attackedSquares[validMove.absRow][validMove.absCol] = true);
       }
     }
@@ -108,11 +110,29 @@ const validateAndPush = (moves: Square[], potential: Square, { board, turn }: Bo
   isInBounds(potential) && board[potential.absRow][potential.absCol]?.color !== turn && moves.push(potential);
 }
 
-const getValidKingMoves = (from : Square, boardState: BoardState): Square[] => {
-  const moves: Square[] = [];
+const getValidKingMoves = (from : Square, boardState: BoardState): PotentialMove[] => {
+  const { board, turn} = boardState;
+  const moves: PotentialMove[] = [];
   KING_DELTAS.forEach((dy: number) => KING_DELTAS.forEach((dx) => {
     validateAndPush(moves, { absRow: from.absRow + dy, absCol: from.absCol + dx }, boardState)
   }));
+  // Account for castling
+  if (board[from.absRow][from.absCol]?.numMoves === 0) {
+    // TODO: ENSURE no one is attacking the castle squares - currently unaccounted for
+    // do this by augmenting the inCheck method to take a square to verify against and then just see if that square is
+    // "in check" for each square between the rook and the king
+    const toShortRook = {absRow: from.absRow, absCol: from.absCol + 3 };
+    const shortCastleRook = board[from.absRow][from.absCol + 3];
+    if (shortCastleRook && shortCastleRook.numMoves === 0 && !isBlocked(from, toShortRook, boardState, getDiffs(from, toShortRook))) {
+      moves.push(CASTLE_SHORT[turn]);
+    }
+    const toLongRook = {absRow: from.absRow, absCol: from.absCol - 4};
+    const longCastelRook = board[from.absRow][from.absCol - 4];
+    console.log(longCastelRook);
+    if (longCastelRook && longCastelRook.numMoves === 0 && !isBlocked(from, toLongRook, boardState, getDiffs(from, toLongRook))) {
+      moves.push(CASTLE_LONG[turn]);
+    }
+  }
   return moves;
 }
 

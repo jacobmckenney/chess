@@ -50,6 +50,7 @@ export type Square = {
 
 export type PotentialMove = Square & {
     taken?: Square,
+    additional?: MoveInfo
 }
 
 export type MoveInfo = {
