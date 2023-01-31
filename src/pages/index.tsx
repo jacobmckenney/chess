@@ -2,14 +2,20 @@ import { useCycle } from "framer-motion";
 import React, { useState } from "react";
 import useMeasure from "react-use-measure";
 import PieceDisplay from "../components/features/board/Piece";
-import Button from "../components/ui/Button";
-import ProfileBadge from "../components/ui/ProfileBadge";
 import { White, Black, INITIAL_BOARD } from "../constants/board";
-import type { MoveInfo, Piece, UpdateBoardArgs } from "../types/board";
+import type {
+  MoveInfo,
+  Piece,
+  PotentialMove,
+  Selection,
+  UpdateBoardArgs,
+} from "../types/board";
 import type { BoardState, Color, Square } from "../types/board";
 import { inverseColor } from "../utils/board";
 import { reverse2d } from "../utils/misc";
-import { isValidMove } from "../utils/move-validation";
+import { getValidMoves, inCheck } from "../utils/move-validation";
+import some from "lodash/some";
+import { add, find } from "lodash";
 
 interface Props {
   gameId: string;
@@ -18,6 +24,17 @@ interface Props {
 
 const colToFile = (col: number) => {
   return String.fromCharCode(col + 65);
+};
+
+const getNextMove = (
+  arr: MoveInfo[],
+  move: MoveInfo,
+  turn: Color
+): MoveInfo[] => {
+  if (turn) {
+    arr.push(move);
+  }
+  return arr;
 };
 
 const getPieceInfo = (
@@ -40,14 +57,61 @@ const getPieceInfo = (
   };
 };
 
+const getMutators = (
+  { absRow: fromRow, absCol: fromCol }: Square,
+  { absRow: toRow, absCol: toCol }: Square,
+  boardState: BoardState,
+  selectedPiece: Piece,
+  potentialMove: PotentialMove
+) => {
+  const { board } = boardState;
+  const fromPiece = board[fromRow][fromCol];
+  const toPiece = board[toRow][toCol];
+  let takenPiece: Piece | null;
+  let additionalPiece: Piece | null;
+  // Mutate board
+  const mutate = () => {
+    if (potentialMove.taken) {
+      takenPiece =
+        board[potentialMove.taken.absRow][potentialMove.taken.absCol];
+      board[potentialMove.taken.absRow][potentialMove.taken.absCol] = null;
+    }
+    if (potentialMove.additional) {
+      const { additional } = potentialMove;
+      additionalPiece = board[additional.from.absRow][additional.from.absCol];
+      board[additional.from.absRow][additional.from.absCol] = null;
+      board[additional.to.absRow][additional.to.absCol] = additional.piece;
+    }
+    board[fromRow][fromCol] = null;
+    board[toRow][toCol] = selectedPiece;
+  };
+
+  const revert = () => {
+    // revert mutation because we don't deep copy the board for efficiency's sake
+    if (potentialMove.taken) {
+      board[potentialMove.taken.absRow][potentialMove.taken.absCol] =
+        takenPiece;
+    }
+    if (potentialMove.additional) {
+      const { additional } = potentialMove;
+      board[additional.to.absRow][additional.to.absCol] = null;
+      board[additional.from.absRow][additional.from.absCol] = additionalPiece;
+    }
+    board[fromRow][fromCol] = fromPiece;
+    board[toRow][toCol] = toPiece;
+  };
+  return { mutate, revert };
+};
+
 const updateBoard = ({
   piece,
   isSelected,
   to,
   boardState,
-  selected,
-  setSelected,
+  selection,
+  setSelection,
   setBoardState,
+  cyclePov,
 }: UpdateBoardArgs) => {
   const {
     board,
@@ -55,38 +119,41 @@ const updateBoard = ({
     moves: { white, black },
   } = boardState;
   if (piece && turn === piece.color) {
-    setSelected(isSelected ? null : to);
+    setSelection(
+      isSelected
+        ? null
+        : {
+            square: to,
+            validMoves: getValidMoves(piece.type, to, boardState),
+          }
+    );
   }
-  if (!selected) return;
-  const { isValid, taken } = isValidMove(selected, to, boardState);
-  if (!isValid) return;
-  // Update board
-  const { absRow: fromRow, absCol: fromCol } = selected;
-  const { absRow: toRow, absCol: toCol } = to;
+  if (!selection) return;
+  const potentialMove = find(selection.validMoves, to as PotentialMove);
+  if (!potentialMove) return;
+  const selected = selection.square;
   const selectedPiece = board[selected.absRow][selected.absCol] as Piece;
+  // Update board
+  const { mutate, revert } = getMutators(
+    selected,
+    to,
+    boardState,
+    selectedPiece,
+    potentialMove
+  );
+  mutate();
+  if (inCheck(boardState)) {
+    revert();
+    return;
+  }
+  // commit state change
   selectedPiece.numMoves++;
-  const getNextMove = (
-    arr: MoveInfo[],
-    move: MoveInfo,
-    turn: Color
-  ): MoveInfo[] => {
-    if (turn) {
-      arr.push(move);
-    }
-    return arr;
-  };
   const newMove = { piece: selectedPiece, from: selected, to };
   const [newWhite, newBlack] = [
     getNextMove(white, newMove, turn),
     getNextMove(black, newMove, inverseColor(turn)),
   ];
   setBoardState((prev) => {
-    const { board } = prev;
-    if (taken) {
-      board[taken.absRow][taken.absCol] = null;
-    }
-    board[fromRow][fromCol] = null;
-    board[toRow][toCol] = selectedPiece;
     // Log move
     return {
       ...prev,
@@ -99,12 +166,13 @@ const updateBoard = ({
       turn: prev.turn === White ? Black : White,
     };
   });
-  setSelected(null);
+  setSelection(null);
+  cyclePov();
 };
 
 const Board: React.FC<Props> = ({}) => {
   const [pov, cyclePov] = useCycle<Color>(White, Black);
-  const [selected, setSelected] = useState<Square | null>(null);
+  const [selection, setSelection] = useState<Selection | null>(null);
   const [boardState, setBoardState] = useState<BoardState>({
     white: { name: "jake", elo: 2000 },
     black: { name: "spence", elo: 2500 },
@@ -112,15 +180,12 @@ const Board: React.FC<Props> = ({}) => {
     moves: { white: [], black: [], move: 0 },
     board: INITIAL_BOARD,
   });
-  const { white, black, board } = boardState;
+  const { board, turn } = boardState;
 
   const [ref, { height, width }] = useMeasure();
   const boardLen = Math.min(height - height * 0.15, width - width * 0.15);
   const squareLen = boardLen / 8;
   const pieceSize = squareLen * 0.9;
-
-  const user = pov ? white : black;
-  const opponent = pov ? black : white;
 
   const getDisplayBoard = (board: (Piece | null)[][]) => {
     return pov ? board : reverse2d<Piece | null>(board);
@@ -132,10 +197,7 @@ const Board: React.FC<Props> = ({}) => {
       ref={ref}
       className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-[#2e026d] to-[#15162c] text-white"
     >
-      <div>
-        <ProfileBadge user={opponent} />
-        <Button action={cyclePov}>Switch Pov</Button>
-      </div>
+      {JSON.stringify(selection)}
       <div
         className="grid grid-cols-8 bg-black shadow-md shadow-black"
         style={{ width: boardLen, height: boardLen }}
@@ -143,7 +205,7 @@ const Board: React.FC<Props> = ({}) => {
         {displayBoard.map((pieceRow, rowIdx) =>
           pieceRow.map((piece, colIdx) => {
             const { square, isSelected, displayRank, displayFile } =
-              getPieceInfo(rowIdx, colIdx, pov, selected);
+              getPieceInfo(rowIdx, colIdx, pov, selection?.square ?? null);
             return (
               <div
                 onClick={() =>
@@ -152,19 +214,23 @@ const Board: React.FC<Props> = ({}) => {
                     isSelected,
                     to: square,
                     boardState,
-                    selected,
-                    setSelected,
+                    selection: selection,
+                    setSelection,
                     setBoardState,
+                    cyclePov,
                   })
                 }
                 key={`${rowIdx}${colIdx}`}
                 className={`relative flex items-center justify-center text-black ${
                   isSelected
                     ? "bg-red-500"
+                    : some(selection?.validMoves, square)
+                    ? "bg-green-400"
                     : colIdx % 2 == rowIdx % 2
                     ? "bg-gray-400"
                     : "bg-white"
-                }`}
+                }
+                ${piece?.color === turn ? "cursor-pointer" : "cursor-default"}`}
               >
                 <div className="absolute top-0 left-0 text-sm">{`${displayFile}${displayRank}`}</div>
                 {piece ? (
@@ -177,7 +243,6 @@ const Board: React.FC<Props> = ({}) => {
           })
         )}
       </div>
-      <ProfileBadge user={user} />
     </div>
   );
 };

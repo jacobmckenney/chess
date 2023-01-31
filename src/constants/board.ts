@@ -1,4 +1,4 @@
-import type { Board } from "../types/board";
+import type { Board, PotentialMove } from "../types/board";
 import { Color, Type} from "../types/board";
 export const { White, Black } = Color;
 export const { Pawn, Knight, Bishop, Rook, Queen, King} = Type;
@@ -29,6 +29,17 @@ export const INITIAL_BOARD: Board = [
     [null, null, null, null, null, null, null, null],
     [null, null, null, null, null, null, null, null],
     [null, null, null, null, null, null, null, null],
-   [WhitePawn(), WhitePawn(), WhitePawn(), WhitePawn(), WhitePawn(), WhitePawn(), WhitePawn(), WhitePawn()],
+    [WhitePawn(), WhitePawn(), WhitePawn(), WhitePawn(), WhitePawn(), WhitePawn(), WhitePawn(), WhitePawn()],
     [WhiteRook(), WhiteKnight(), WhiteBishop(), WhiteQueen(), WhiteKing(), WhiteBishop(), WhiteKnight(), WhiteRook()]
 ]
+
+export const CASTLE_SHORT: {[key in Color]: PotentialMove} = {
+    [White]: { absRow: 7, absCol: 6, additional: { piece: { type: Rook, color: White, value: 5, numMoves: 1 }, from: { absRow: 7, absCol: 7}, to: {absRow: 7, absCol: 5}}},
+    [Black]: { absRow: 0, absCol: 6, additional: { piece: { type: Rook, color: Black, value: 5, numMoves: 1 }, from: { absRow: 0, absCol: 7}, to: {absRow: 0, absCol: 5}}}
+}
+export const CASTLE_LONG = {
+    [White]: { absRow: 7, absCol: 2, additional: { piece: { type: Rook, color: White, value: 5, numMoves: 1 }, from: { absRow: 7, absCol: 0}, to: {absRow: 7, absCol: 3}}},
+    [Black]: { absRow: 0, absCol: 2, additional: { piece: { type: Rook, color: Black, value: 5, numMoves: 1 }, from: { absRow: 0, absCol: 0}, to: {absRow: 0, absCol: 3}}}
+}
+
+export const BOARD_SIDE_LEN = INITIAL_BOARD.length;

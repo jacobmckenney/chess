@@ -1,3 +1,5 @@
+import type { Cycle } from "framer-motion";
+
 export enum Color {
     White = 1,
     Black = 0,
@@ -11,6 +13,7 @@ export enum Type {
     Queen = "queen",
     King = "king",
 }
+
 
 export type PublicUserInfo = {
     name: string,
@@ -45,6 +48,11 @@ export type Square = {
     absCol: number;
 }
 
+export type PotentialMove = Square & {
+    taken?: Square,
+    additional?: MoveInfo
+}
+
 export type MoveInfo = {
     piece: Piece,
     from: Square,
@@ -56,12 +64,21 @@ export type UpdateBoardArgs = {
     isSelected: boolean,
     to: Square,
     boardState: BoardState,
-    selected: Square | null,
-    setSelected: React.Dispatch<React.SetStateAction<Square | null>>,
+    selection: Selection | null,
+    setSelection: React.Dispatch<React.SetStateAction<Selection | null>>,
     setBoardState: React.Dispatch<React.SetStateAction<BoardState>>,
+    cyclePov: Cycle
 }
 
 export type MoveValidateReturn = {
     taken?: Square,
     isValid: boolean,
 }
+
+export type Selection = {
+    square: Square,
+    validMoves: PotentialMove[],
+}
+
+export type ValidMovesCallback = (from: Square, boardState: BoardState) => PotentialMove[];
+export type ValidMovesMap = {[key in Type]: ValidMovesCallback};
