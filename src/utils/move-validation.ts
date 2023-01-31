@@ -3,7 +3,8 @@ import type { Color, Piece, PotentialMove, ValidMovesMap } from './../types/boar
 import { getLastMove, inverseColor } from './board';
 import { Pawn, Bishop, Knight, Rook, Queen, King, Black, White } from "../constants/board";
 import type { Square, BoardState } from "../types/board";
-import { inRange } from 'lodash';
+import { inRange, isEqual, some } from 'lodash';
+import { findPiece } from './misc';
 
 const KING_DELTAS = [-1, 0, 1];
 const KNIGHT_DELTAS = [[1, 2], [-1, 2], [1, -2], [-1, -2], [2, 1], [-2, 1], [2, -1], [-2, -1]];
@@ -73,8 +74,51 @@ const getDiffs = (from: Square, to: Square) => {
 // calculated on every move (non-blocking, while players are playing) and then these calculations are used to make
 // these decisions on time of move confirmation
 // TODO: integrate inCheck with this function and do both calculations at the same time
-const checkOrMate = () => {
-  return false;
+export const checkOrMate = (boardState: BoardState, attacker: Color) => {
+  const { board, turn } = boardState;
+  // eslint-disable-next-line prefer-const
+  let { initialValidMoves, attackMoves, attackedSquares} = getAttackedSquares(boardState);
+  const king = findPiece(board, King, inverseColor(attacker));
+  const linesOfSight: Square[][] = [];
+  const losAttackers: Square[] = [];
+  attackMoves.forEach((row, rowIdx) => {
+    row.forEach((attacks, colIdx) => {
+    if (!attacks) return;
+    const find = attacks.find((attack: PotentialMove) => (attack.absCol === king.absCol && attack.absRow === king.absRow));
+    // console.log(rowIdx, colIdx, find);
+    if (find)  {
+      // piece at rowIdx/colIdx is attacking king
+      losAttackers.push({absRow: rowIdx, absCol: colIdx})
+      linesOfSight.push(getSquaresBetween({absRow: rowIdx, absCol: colIdx}, king));
+    }
+  })});
+  initialValidMoves = initialValidMoves.map((row, rowIdx) => row.map((validMoves, colIdx) => {
+    if (!validMoves) return null;
+    // INJECT CASTLING moves
+    if (board[rowIdx][colIdx]?.type === King) {
+      validMoves = [...validMoves, ...getCastleMoves({absRow: rowIdx, absCol: colIdx}, boardState)];
+    }
+    return validMoves.filter(
+    (move: PotentialMove) => {
+      if (board[rowIdx][colIdx]?.type === King) { // Look into filtering just by color = inverseColor(attacker)
+        // TODO: filter such that king can still move
+        return linesOfSight.every((los) =>  los.filter((check) => isEqual(check, {absRow: move.absRow, absCol: move.absCol})).length === 0) ||  losAttackers.every((losa) => isEqual(losa, {absRow: move.absRow, absCol: move.absCol}));
+      } else {
+        return linesOfSight.every((los) => some(los, {absRow: move.absRow, absCol: move.absCol})) || losAttackers.every((losa) => isEqual(losa, {absRow: move.absRow, absCol: move.absCol}));
+      }
+    })}));
+    const check = linesOfSight.length > 0;
+    let noValidSquares = true;
+    initialValidMoves.forEach((row) => row.forEach((validMoves) => {
+      if (validMoves?.length) {
+        noValidSquares = false;
+      }
+    }))
+  // TODO: determine if it is checkmate or not - make sure to encorporate castling moves
+  // TODO: Incorporate castling into
+  // Find pieces that are putting king into check
+  // filter moves that don't break all lines of sight or take all pieces
+  return { validMoves: initialValidMoves, check, checkMate: check && noValidSquares, staleMate: !check && noValidSquares };
 }
 
 const getPawnAttackSquares = (piece: Piece, {absRow, absCol}: Square, boardState: BoardState) => {
@@ -88,29 +132,38 @@ const getPawnAttackSquares = (piece: Piece, {absRow, absCol}: Square, boardState
   }
   return squares;
 }
-
-export const squaresUnderAttackBy = (boardState: BoardState, checkSquares: Square[], attacker: Color) => {
-  if (!checkSquares.length) return false;
+// attackedSquares[White] = squares white is attacking and vice versa
+// initialValidMoves are all of the valid moves for each piece at each spot on the board not incorporating castling
+// attackMoves are the same as initialValidMoves except for pawns because movements aren't synchronized see below
+export const getAttackedSquares = (boardState: BoardState) => {
   const { board } = boardState;
-  const attackedSquares = Array.from(Array(8), () => new Array(8).fill(false) as boolean[]);
+  const initialValidMoves: (PotentialMove[] | null)[][] = Array.from(Array(8), () => new Array(8).fill(null) as null[]);
+  const attackMoves: (PotentialMove[] | null)[][] =  Array.from(Array(8), () => new Array(8).fill(null) as null[]);
+  const attackedSquares = [Array.from(Array(8), () => new Array(8).fill(false) as boolean[]), Array.from(Array(8), () => new Array(8).fill(false) as boolean[])];
   for (const [rowIdx, row] of board.entries()) {
     for (const [colIdx, piece] of row.entries()) {
-      if (piece && piece.color === attacker) {
+      if (piece) {
         // Can't use validMoves for pawns because their movements aren't synchronized with their attack squares
-        const validMoves = piece.type !== Pawn ? getValidMoves(piece.type, {absRow: rowIdx, absCol: colIdx}, {...boardState, turn: attacker}) : getPawnAttackSquares(piece, { absRow: rowIdx, absCol: colIdx}, boardState);
-        validMoves.forEach((validMove) => attackedSquares[validMove.absRow][validMove.absCol] = true);
+        const validMoves = getValidMoves(piece.type, {absRow: rowIdx, absCol: colIdx}, {...boardState, turn: piece.color});
+        initialValidMoves[rowIdx][colIdx] = validMoves;
+        const attacks = piece.type === Pawn ? getPawnAttackSquares(piece, { absRow: rowIdx, absCol: colIdx}, boardState) : validMoves;
+        attackMoves[rowIdx][colIdx] = attacks;
+        attacks.forEach((attack) => attackedSquares[piece.color][attack.absRow][attack.absCol] = true);
       }
     }
   }
-  return checkSquares.some(check => attackedSquares[check.absRow][check.absCol]);
+  return { initialValidMoves, attackMoves, attackedSquares };
 }
 
-
+export const squaresUnderAttackBy = (boardState: BoardState, checkSquares: Square[], attacker: Color) => {
+  if (!checkSquares.length) return false;
+  const { attackedSquares } = getAttackedSquares(boardState);
+  return checkSquares.some(check => attackedSquares[attacker][check.absRow][check.absCol]);
+}
 
 const validateAndPush = (moves: Square[], potential: Square, { board, turn }: BoardState) => {
   isInBounds(potential) && board[potential.absRow][potential.absCol]?.color !== turn && moves.push(potential);
 }
-
 
 export const getCastleMoves = (from: Square, boardState: BoardState) => {
   const { board, turn } = boardState;

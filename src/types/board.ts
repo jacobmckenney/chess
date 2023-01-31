@@ -22,12 +22,23 @@ export type PublicUserInfo = {
 
 export type Board = (Piece | null)[][];
 
-export type BoardState = {
+export type InitialBoardState = {
     white: PublicUserInfo,
     black: PublicUserInfo,
     turn: Color,
     moves: Moves,
     board: Board,
+
+}
+
+export type BoardState = InitialBoardState & {
+    validity: Validity,
+}
+
+export type Validity = {
+    validMoves: (PotentialMove[] | null)[][],
+    check: boolean,
+    checkMate: boolean,
 }
 
 export type Piece = {

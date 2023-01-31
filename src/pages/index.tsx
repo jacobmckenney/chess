@@ -4,6 +4,7 @@ import useMeasure from "react-use-measure";
 import PieceDisplay from "../components/features/board/Piece";
 import { White, Black, INITIAL_BOARD, King } from "../constants/board";
 import type {
+  InitialBoardState,
   MoveInfo,
   Piece,
   PotentialMove,
@@ -13,10 +14,7 @@ import type {
 import type { BoardState, Color, Square } from "../types/board";
 import { inverseColor } from "../utils/board";
 import { findPiece, reverse2d } from "../utils/misc";
-import {
-  getAllValidMoves,
-  squaresUnderAttackBy,
-} from "../utils/move-validation";
+import { checkOrMate, squaresUnderAttackBy } from "../utils/move-validation";
 import some from "lodash/some";
 import find from "lodash/find";
 
@@ -38,6 +36,15 @@ const getNextMove = (
     arr.push(move);
   }
   return arr;
+};
+
+const getBoardStateFromInitial = (initial: InitialBoardState) => {
+  const temp: BoardState = {
+    ...initial,
+    validity: { validMoves: [], check: false, checkMate: false },
+  };
+  temp.validity = checkOrMate(temp, inverseColor(temp.turn));
+  return temp;
 };
 
 const getPieceInfo = (
@@ -138,7 +145,8 @@ const updateBoard = ({
         ? null
         : {
             square: to,
-            validMoves: getAllValidMoves(piece.type, to, boardState), // TODO: if the king is in check only include blocking moves
+            validMoves:
+              boardState.validity.validMoves[to.absRow][to.absCol] ?? [],
           }
     );
   }
@@ -157,6 +165,7 @@ const updateBoard = ({
     potentialMove
   );
   mutate();
+  // 169 - 178 is a safeguard while I'm getting the validation logic perfect, will be removed later
   if (
     squaresUnderAttackBy(
       boardState,
@@ -174,9 +183,8 @@ const updateBoard = ({
     getNextMove(white, newMove, turn),
     getNextMove(black, newMove, inverseColor(turn)),
   ];
-  setBoardState((prev) => {
-    // Log move
-    return {
+  setBoardState((prev) =>
+    getBoardStateFromInitial({
       ...prev,
       moves: {
         white: newWhite,
@@ -185,8 +193,8 @@ const updateBoard = ({
       },
       board,
       turn: prev.turn === White ? Black : White,
-    };
-  });
+    })
+  );
   setSelection(null);
   cyclePov();
 };
@@ -194,13 +202,15 @@ const updateBoard = ({
 const Board: React.FC<Props> = ({}) => {
   const [pov, cyclePov] = useCycle<Color>(White, Black);
   const [selection, setSelection] = useState<Selection | null>(null);
-  const [boardState, setBoardState] = useState<BoardState>({
-    white: { name: "jake", elo: 2000 },
-    black: { name: "spence", elo: 2500 },
-    turn: White,
-    moves: { white: [], black: [], move: 0 },
-    board: INITIAL_BOARD,
-  });
+  const [boardState, setBoardState] = useState<BoardState>(() =>
+    getBoardStateFromInitial({
+      white: { name: "jake", elo: 2000 },
+      black: { name: "spence", elo: 2500 },
+      turn: White,
+      moves: { white: [], black: [], move: 0 },
+      board: INITIAL_BOARD,
+    })
+  );
   const { board, turn } = boardState;
 
   const [ref, { height, width }] = useMeasure();
@@ -263,6 +273,9 @@ const Board: React.FC<Props> = ({}) => {
           })
         )}
       </div>
+      <button onClick={() => checkOrMate(boardState, White)}>
+        checkormate
+      </button>
     </div>
   );
 };
