@@ -17,7 +17,7 @@ export const GET_PIECES = {
     BlackKing: () => ({color: Black, type: King, value: Number.POSITIVE_INFINITY, numMoves: 0 }),
 }
 
-const {
+export const {
     WhitePawn, WhiteBishop, WhiteKing, WhiteKnight, WhiteQueen, WhiteRook,
     BlackPawn, BlackBishop, BlackKing, BlackKnight, BlackQueen, BlackRook
 } = GET_PIECES;

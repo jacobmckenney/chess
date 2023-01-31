@@ -13,7 +13,11 @@ import type {
 import type { BoardState, Color, Square } from "../types/board";
 import { inverseColor } from "../utils/board";
 import { findPiece, reverse2d } from "../utils/misc";
-import { getValidMoves, squaresUnderAttackBy } from "../utils/move-validation";
+import {
+  getCastleMoves,
+  getValidMoves,
+  squaresUnderAttackBy,
+} from "../utils/move-validation";
 import some from "lodash/some";
 import find from "lodash/find";
 
@@ -71,31 +75,46 @@ const getMutators = (
   let additionalPiece: Piece | null;
   // Mutate board
   const mutate = () => {
-    if (potentialMove.taken) {
-      takenPiece =
-        board[potentialMove.taken.absRow][potentialMove.taken.absCol];
-      board[potentialMove.taken.absRow][potentialMove.taken.absCol] = null;
-    }
-    if (potentialMove.additional) {
-      const { additional } = potentialMove;
-      additionalPiece = board[additional.from.absRow][additional.from.absCol];
-      board[additional.from.absRow][additional.from.absCol] = null;
-      board[additional.to.absRow][additional.to.absCol] = additional.piece;
-    }
     board[fromRow][fromCol] = null;
     board[toRow][toCol] = selectedPiece;
+    if (potentialMove.taken) {
+      const {
+        taken: { absRow: takenRow, absCol: takenCol },
+      } = potentialMove;
+      takenPiece = board[takenRow][takenCol];
+      board[takenRow][takenCol] = null;
+    }
+    if (potentialMove.additional) {
+      const {
+        additional: {
+          to: { absRow: aToRow, absCol: aToCol },
+          from: { absRow: aFromRow, absCol: aFromCol },
+          piece,
+        },
+      } = potentialMove;
+      additionalPiece = board[aFromRow][aFromCol];
+      board[aFromRow][aFromCol] = null;
+      board[aToRow][aToCol] = piece;
+    }
   };
 
   const revert = () => {
     // revert mutation because we don't deep copy the board for efficiency's sake
     if (potentialMove.taken) {
-      board[potentialMove.taken.absRow][potentialMove.taken.absCol] =
-        takenPiece;
+      const {
+        taken: { absRow: takenRow, absCol: takenCol },
+      } = potentialMove;
+      board[takenRow][takenCol] = takenPiece;
     }
     if (potentialMove.additional) {
-      const { additional } = potentialMove;
-      board[additional.to.absRow][additional.to.absCol] = null;
-      board[additional.from.absRow][additional.from.absCol] = additionalPiece;
+      const {
+        additional: {
+          to: { absRow: aToRow, absCol: aToCol },
+          from: { absRow: aFromRow, absCol: aFromCol },
+        },
+      } = potentialMove;
+      board[aToRow][aToCol] = null;
+      board[aFromRow][aFromCol] = additionalPiece;
     }
     board[fromRow][fromCol] = fromPiece;
     board[toRow][toCol] = toPiece;
@@ -124,7 +143,10 @@ const updateBoard = ({
         ? null
         : {
             square: to,
-            validMoves: getValidMoves(piece.type, to, boardState),
+            validMoves: [
+              ...getValidMoves(piece.type, to, boardState),
+              ...(piece.type === King ? getCastleMoves(to, boardState) : []),
+            ],
           }
     );
   }
@@ -203,6 +225,7 @@ const Board: React.FC<Props> = ({}) => {
       ref={ref}
       className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-[#2e026d] to-[#15162c] text-white"
     >
+      {JSON.stringify(selection)}
       <div
         className="grid grid-cols-8 bg-black shadow-md shadow-black"
         style={{ width: boardLen, height: boardLen }}

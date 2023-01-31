@@ -1,6 +1,6 @@
-import { BOARD_SIDE_LEN, CASTLE_SHORT, CASTLE_LONG } from './../constants/board';
+import { BOARD_SIDE_LEN, CASTLE_SHORT, CASTLE_LONG, WhiteQueen, BlackQueen } from './../constants/board';
 import type { Color, Piece, PotentialMove, ValidMovesMap } from './../types/board';
-import { getLastMove } from './board';
+import { getLastMove, inverseColor } from './board';
 import { Pawn, Bishop, Knight, Rook, Queen, King, Black, White } from "../constants/board";
 import type { Square, BoardState } from "../types/board";
 import { inRange } from 'lodash';
@@ -72,11 +72,6 @@ const getSquaresBetween = (from: Square, to: Square): Square[] => {
 // Because of this I might want to move to a new form of validation where all valid squares for every piece are
 // calculated on every move (non-blocking, while players are playing) and then these calculations are used to make
 // these decisions on time of move confirmation
-
-// How to calculate this efficiently? Could iterate through every piece and check for contact with king... seems inefficient
-// Better approach seems to be checking if the piece is pinned to its own king and then validating whether the king is in check
-// An even better approach might be to iterate through all of the opponents pieces (max 16) and find all squares that are under
-// their control after the theoretical board mutation and if that includes the king then the move is invalid.
 const getPawnAttackSquares = (piece: Piece, {absRow, absCol}: Square, boardState: BoardState) => {
   const squares: PotentialMove[] = [];
   if (piece.color) {
@@ -130,6 +125,13 @@ const getValidKingMoves = (from : Square, boardState: BoardState): PotentialMove
     validateAndPush(moves, { absRow: fromRow + dy, absCol: fromCol + dx }, boardState)
   }));
   // Account for castling
+  return moves;
+}
+
+export const getCastleMoves = (from: Square, boardState: BoardState) => {
+  const { board, turn } = boardState;
+  const moves: PotentialMove[] = [];
+  const {absRow: fromRow, absCol: fromCol} = from;
   if (board[fromRow][fromCol]?.numMoves === 0) {
     // TODO: ENSURE no one is attacking the castle squares - currently unaccounted for
     // do this by augmenting the inCheck method to take a square to verify against and then just see if that square is
@@ -138,13 +140,12 @@ const getValidKingMoves = (from : Square, boardState: BoardState): PotentialMove
     const toShortRook = {absRow: fromRow, absCol: fromCol + 3 };
     const shortCastleRook = board[fromRow][fromCol + 3];
     if (shortCastleRook && shortCastleRook.numMoves === 0 && !isBlocked(from, toShortRook, boardState)) {
-      moves.push(CASTLE_SHORT[turn]);
+      !squaresUnderAttackBy(boardState, getSquaresBetween(from, toShortRook), inverseColor(turn)) && moves.push(CASTLE_SHORT[turn]);
     }
     const toLongRook = {absRow: fromRow, absCol: fromCol - 4};
     const longCastelRook = board[fromRow][fromCol - 4];
-    console.log(longCastelRook);
     if (longCastelRook && longCastelRook.numMoves === 0 && !isBlocked(from, toLongRook, boardState)) {
-      moves.push(CASTLE_LONG[turn]);
+      !squaresUnderAttackBy(boardState, getSquaresBetween(from, toLongRook), inverseColor(turn)) && moves.push(CASTLE_LONG[turn]);
     }
   }
   return moves;
@@ -152,7 +153,8 @@ const getValidKingMoves = (from : Square, boardState: BoardState): PotentialMove
 
 const isInBounds  = (square: Square) => inRange(square.absRow, 0, BOARD_SIDE_LEN) && inRange(square.absCol, 0, BOARD_SIDE_LEN);
 
-const isValidPawnMove = (from: Square, to: Square, { turn, board, moves }: BoardState, diffs: Diffs) => {
+const isValidPawnMove = (from: Square, to: Square, boardState: BoardState, diffs: Diffs) => {
+  const { turn, board, moves } = boardState;
   const lastMove = getLastMove(moves, turn);
   const { diffY, diffX} = diffs;
   const [{ absRow: fromRow}, {absCol: toCol, absRow: toRow}] = [from, to];
@@ -165,8 +167,8 @@ const isValidPawnMove = (from: Square, to: Square, { turn, board, moves }: Board
   const epLastMoveAndPawn = (lastMove && lastMove.to.absRow === epTakenRow && lastMove.to.absCol === toCol && takenPieceEP?.type === Pawn) ?? false;
   const isTakingEnPassant = (turn ? fromRow === 3 : fromRow === 4) && epLastMoveAndPawn;
   const canTake = (isOneDiagonal && board[toRow][toCol]?.color === (turn ? Black : White)) || isTakingEnPassant;
-  const isValid = isValidDirection && isValidNumSquares && ((onCol(diffs) && !board[toRow][toCol]) || canTake);
-  return { isValid, ...(isTakingEnPassant && {taken: { absRow: epTakenRow, absCol: toCol}}) };
+  const isValid = isValidDirection && !isBlocked(from, to, boardState) && isValidNumSquares && ((onCol(diffs) && !board[toRow][toCol]) || canTake);
+  return { isValid, ...(isTakingEnPassant && {taken: { absRow: epTakenRow, absCol: toCol}}), ...(isValid && toRow === (turn ? 0 : 7) && {additional: {piece: turn ? WhiteQueen() : BlackQueen(), from, to}}) };
 }
 
 const getValidPawnMoves = (from: Square, boardState: BoardState): PotentialMove[] => {
@@ -180,8 +182,8 @@ const getValidPawnMoves = (from: Square, boardState: BoardState): PotentialMove[
   ]
   return checks.reduce((prev: PotentialMove[], check) => {
     const { absCol, absRow } = check;
-    const { isValid, taken } = isValidPawnMove(from, check, boardState, getDiffs(from, check));
-    return isValid ? [...prev, {absRow, absCol, taken}] : prev;
+    const { isValid, taken, additional } = isValidPawnMove(from, check, boardState, getDiffs(from, check));
+    return isValid ? [...prev, {absRow, absCol, taken, additional}] : prev;
   }, []);
 }
 

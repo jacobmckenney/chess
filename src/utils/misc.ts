@@ -1,7 +1,7 @@
 import type { Board, Color, Square } from './../types/board';
-import type { Piece, Type } from "../types/board";
+import type { Type } from "../types/board";
 
-export const reverse2d = <T = any>(arr: T[][]): T[][] => {
+export const reverse2d = <T = unknown>(arr: T[][]): T[][] => {
     const helper = <T>(a: T[]) => a.slice(0).reverse();
     return helper(arr).map(helper);
 }

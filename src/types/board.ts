@@ -35,6 +35,8 @@ export type Piece = {
     type: Type,
     value: number,
     numMoves: number,
+    validSquares?: Square[], // TODO: keep validations on piece
+    attackSquares?: Square[]
 }
 
 export type Moves = {
